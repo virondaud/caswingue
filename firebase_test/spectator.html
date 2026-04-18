@@ -189,7 +189,7 @@ function renderTeamSection(data){
     const gap=Math.abs(tot[0]-tot[1]);
 
     let html=`<div class="card"><div class="card-title">🏅 Double Best Ball</div>`;
-    // Score combiné prominent (max 2 pts par trou)
+    // Score combiné prominent (max 2 trous gagnés par trou joué)
     [0,1].forEach(ti=>{
       const cls=isTie?'team-card tie':(lead===ti?'team-card leader':'team-card second');
       const tname=ti===0?t0:t1;
@@ -197,9 +197,9 @@ function renderTeamSection(data){
         <div class="team-head">
           <div>
             <div class="team-name">${!isTie&&lead===ti?'🏆 ':''}${esc(tname)}</div>
-            <div class="team-sub">${isTie?'Ex-aequo':(lead===ti?`Mène de ${gap} pt${gap>1?'s':''}`:'Au classement')}</div>
+            <div class="team-sub">${isTie?'All square':(lead===ti?`Mène de ${gap}`:'Au classement')}</div>
           </div>
-          <div class="team-score">${tot[ti]} <span style="font-size:13px;opacity:.8">pts</span></div>
+          <div class="team-score">${tot[ti]} <span style="font-size:14px;opacity:.85">up</span></div>
         </div>
         <div class="team-stat">
           <span>Match 1 · ${m1.hw[ti]||0} tr.</span>
@@ -207,7 +207,7 @@ function renderTeamSection(data){
         </div>
       </div>`;
     });
-    html+=`<div class="sub" style="margin-top:8px">🎯 2 points en jeu par trou · 1 pour Match 1 (meilleurs nets) + 1 pour Match 2 (2<sup>es</sup> nets)</div>
+    html+=`<div class="sub" style="margin-top:8px">🎯 2 trous en jeu à chaque trou · 1 pour Match 1 (meilleurs nets) + 1 pour Match 2 (2<sup>es</sup> nets)</div>
     </div>`;
     return html;
   }
@@ -267,7 +267,7 @@ function renderMatchPlay(data){
   const t0=pls[0]?.name||'J1';const t1=pls[1]?.name||'J2';
   const lead=ms.lead!=null?pls[ms.lead]?.name:null;
   const amt=Math.abs(ms.score||0);
-  let status=amt===0?'🤝 Tout carré':`${esc(lead||'?')} mène ${amt} up`;
+  let status=amt===0?'🤝 All square':`${esc(lead||'?')} mène ${amt} up`;
   return `<div class="card"><div class="card-title">⚔️ Match Play</div>
     <div style="text-align:center;padding:10px;font-size:16px;font-weight:700">${status}</div>
     <div class="team-stat" style="justify-content:center">
@@ -369,7 +369,7 @@ function renderDbbEvolution(data,nHoles){
   if(lastPlayed===0&&hn>0)lastPlayed=hn;
   if(lastPlayed===0)return '';
 
-  let html=`<div class="card"><div class="card-title">📈 Évolution des points équipe</div>
+  let html=`<div class="card"><div class="card-title">📈 Évolution trou par trou</div>
   <div style="overflow-x:auto"><table class="evo-table"><tr><th>Équipe</th>`;
   for(let h=1;h<=lastPlayed;h++){
     const cls=h===9||h===18?'evo-sep':'';
@@ -397,7 +397,7 @@ function renderDbbEvolution(data,nHoles){
   }
   html+=`<td class="evo-sep" style="font-size:14px;color:var(--g)">${(evo[lastPlayed-1]?.b||0)}</td></tr>`;
   html+=`</table></div>
-  <div class="sub">Points cumulés · chiffre = total · <sup>+N</sup> = points gagnés au trou</div></div>`;
+  <div class="sub">"Up" cumulés · chiffre = total · <sup>+N</sup> = trous gagnés au trou</div></div>`;
   return html;
 }
 
