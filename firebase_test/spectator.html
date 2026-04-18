@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>🏌️ Suivi en live — Ça Swingue Manager</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<style>
+:root{--g:#16a34a;--gdk:#006039;--gold:#d4af37;--bg:#f8fafc;--mu:#64748b}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);margin:0;padding:0;color:#1e293b}
+.hdr{background:linear-gradient(135deg,var(--gdk),var(--g));color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.hdr h1{margin:0;font-size:16px;font-weight:800}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px}
+.status.online{background:rgba(255,255,255,.2);color:#fff}
+.status.offline{background:#fee2e2;color:#991b1b}
+.status .dot{width:8px;height:8px;border-radius:50%;animation:blink 1.5s infinite}
+.online .dot{background:#86efac}
+.offline .dot{background:#dc2626;animation:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+.content{padding:16px;max-width:820px;margin:0 auto}
+.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.pls{display:flex;flex-wrap:wrap;gap:8px}
+.pl-badge{background:#f1f5f9;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600}
+.sc-table{width:100%;border-collapse:collapse;font-size:14px}
+.sc-table th{background:var(--gdk);color:#fff;font-weight:600;padding:8px 4px;font-size:13px}
+.sc-table td{padding:8px 4px;text-align:center;border-bottom:1px solid #f1f5f9}
+.sc-table td:first-child,.sc-table th:first-child{text-align:left;padding-left:8px;min-width:90px;font-weight:700}
+.sc-table .pr{background:rgba(0,96,57,.04);font-weight:600}
+.sc-table .sep{border-left:2px solid var(--gdk);font-weight:800;background:#f8fafc}
+.sc-table .total{background:#f0fdf4;font-weight:800}
+.ci{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;font-weight:700;font-size:14px}
+.ce{background:#e67e22;color:#fff;border-radius:50%}.cbi{background:var(--gold);color:#fff;border-radius:50%}.cpar{background:rgba(0,96,57,.08);border-radius:50%}.cbo{color:#c0392b}.cdb{color:#8b1a1a;font-weight:800}
+.tm{color:var(--mu)}
+.big{font-size:32px;font-weight:800;color:var(--gdk);text-align:center;margin:12px 0}
+.sub{font-size:12px;color:var(--mu);text-align:center}
+.empty{text-align:center;padding:40px 20px;color:var(--mu)}
+.flash{animation:flash 1s ease-out}
+@keyframes flash{0%{background:#fef3c7}100%{background:transparent}}
+.err{background:#fee2e2;color:#991b1b;padding:14px;border-radius:10px;margin:16px;font-size:14px}
+.pill{display:inline-block;padding:3px 10px;border-radius:12px;background:#f1f5f9;color:#334155;font-size:11px;font-weight:600;margin-right:6px}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <h1 id="title">🏌️ Suivi en live</h1>
+  <span id="status" class="status offline"><span class="dot"></span><span id="status-txt">Connexion…</span></span>
+</div>
+<div id="content" class="content">
+  <div class="card"><div class="empty">⏳ Chargement de la partie…</div></div>
+</div>
+
+<script>
+const params=new URLSearchParams(location.search);
+const gameId=params.get('id');
+let lastUpdate=null;
+
+if(!gameId){
+  document.getElementById('content').innerHTML='<div class="err">❌ ID de partie manquant.<br>URL attendue : <code>spectator.html?id=g-xxxxxx</code></div>';
+}else if(typeof FIREBASE_CONFIG==='undefined'||!FIREBASE_CONFIG.databaseURL||FIREBASE_CONFIG.databaseURL.includes('ton-projet')){
+  document.getElementById('content').innerHTML='<div class="err">⚠️ Firebase non configuré.<br>Édite <code>firebase-config.js</code> avec les clés de ton projet.</div>';
+}else{
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const db=firebase.database();
+    const ref=db.ref('games/'+gameId);
+
+    // État connexion
+    db.ref('.info/connected').on('value',(s)=>{
+      if(s.val()===true){
+        document.getElementById('status').className='status online';
+        document.getElementById('status-txt').textContent='En ligne';
+      }else{
+        document.getElementById('status').className='status offline';
+        document.getElementById('status-txt').textContent='Hors ligne';
+      }
+    });
+
+    // Écoute des données
+    ref.on('value',(snap)=>{
+      const data=snap.val();
+      if(!data){
+        document.getElementById('content').innerHTML='<div class="empty"><div style="font-size:48px">🔍</div>Partie introuvable<br><small>L\'ID est peut-être expiré ou invalide.</small></div>';
+        return;
+      }
+      render(data);
+      lastUpdate=Date.now();
+    },(err)=>{
+      document.getElementById('content').innerHTML='<div class="err">Erreur de lecture : '+err.message+'</div>';
+    });
+  }catch(e){
+    document.getElementById('content').innerHTML='<div class="err">Erreur : '+e.message+'</div>';
+  }
+}
+
+function render(data){
+  document.getElementById('title').textContent='🏌️ '+(data.courseName||'Partie');
+  const nHoles=(data.holes||[]).length||18;
+  const hn=data.currentHole||0;
+  const dt=new Date(data.startedAt||Date.now());
+  const date=dt.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const heure=dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const teeLabel=data.tee==='jaune'?'🟡 Jaune':'⚪ Blanc';
+  const pls=data.players||[];
+  const scores=data.scores||[];
+  const holes=data.holes||[];
+  const parTotal=holes.reduce((s,h)=>s+h.par,0);
+
+  let html=`<div class="card">
+    <div style="font-weight:700;font-size:16px">${escapeHtml(data.courseName||'Parcours')}</div>
+    <div style="color:#64748b;font-size:13px;margin:4px 0">${date} · ${heure} · ${teeLabel}</div>
+    <span class="pill">${escapeHtml(data.gameTypeLabel||data.gameType||'')}</span>
+    <span class="pill">Par ${parTotal}</span>
+    <span class="pill">Trou ${hn+1}/${nHoles}</span>
+  </div>`;
+
+  // Leaderboard
+  if(pls.length){
+    const tots=pls.map((p,pi)=>{
+      let gr=0,played=0;
+      for(let h=0;h<nHoles;h++){
+        const s=scores[h]?.[pi]||0;
+        if(s>0){gr+=s;played++;}
+      }
+      return {name:p.name,idx:p.index,gr,played};
+    }).sort((a,b)=>a.gr-b.gr);
+    html+=`<div class="card"><div style="font-weight:700;margin-bottom:10px">🏆 Classement brut</div>`;
+    tots.forEach((t,i)=>{
+      const medal=['🥇','🥈','🥉','4️⃣'][i]||'•';
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9">
+        <span style="font-size:20px;width:28px">${medal}</span>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">${escapeHtml(t.name)}</div><div style="color:#64748b;font-size:11px">Index ${t.idx} · ${t.played} trou${t.played>1?'s':''}</div></div>
+        <div style="font-weight:800;font-size:18px;color:#16a34a">${t.gr||'–'}</div>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+
+  // Tableau détaillé
+  if(holes.length&&pls.length){
+    const aller=holes.slice(0,9),retour=holes.slice(9);
+    const parAl=aller.reduce((s,h)=>s+h.par,0);
+    const parRet=retour.reduce((s,h)=>s+h.par,0);
+    html+=`<div class="card" style="overflow-x:auto"><div style="font-weight:700;margin-bottom:10px">📋 Carte de score</div>
+    <table class="sc-table"><tr><th>Trou</th>`;
+    for(let i=0;i<aller.length;i++)html+=`<th>${i+1}</th>`;
+    html+=`<th class="sep">Al.</th>`;
+    for(let i=0;i<retour.length;i++)html+=`<th>${i+10}</th>`;
+    html+=`<th class="sep">Ret.</th><th>Tot.</th></tr>
+    <tr class="pr"><td>Par</td>`;
+    aller.forEach(h=>html+=`<td>${h.par}</td>`);
+    html+=`<td class="sep">${parAl}</td>`;
+    retour.forEach(h=>html+=`<td>${h.par}</td>`);
+    html+=`<td class="sep">${parRet}</td><td>${parAl+parRet}</td></tr>`;
+
+    pls.forEach((p,pi)=>{
+      let totAl=0,totRet=0;
+      let rowAl='',rowRet='';
+      for(let hi=0;hi<9&&hi<holes.length;hi++){
+        const s=scores[hi]?.[pi]||0;totAl+=s;
+        rowAl+=cellHtml(s,holes[hi]?.par);
+      }
+      for(let hi=9;hi<holes.length;hi++){
+        const s=scores[hi]?.[pi]||0;totRet+=s;
+        rowRet+=cellHtml(s,holes[hi]?.par);
+      }
+      const tot=totAl+totRet;
+      html+=`<tr><td>${escapeHtml(p.name)}</td>${rowAl}<td class="sep">${totAl||'–'}</td>${rowRet}<td class="sep">${totRet||'–'}</td><td class="total">${tot||'–'}</td></tr>`;
+    });
+    html+=`</table></div>`;
+  }
+
+  html+=`<div class="sub">Mise à jour : ${new Date(data.updatedAt||Date.now()).toLocaleTimeString('fr-FR')} · rafraîchissement auto</div>`;
+
+  document.getElementById('content').innerHTML=html;
+}
+
+function cellHtml(s,par){
+  if(!s)return '<td>–</td>';
+  if(!par)return `<td>${s}</td>`;
+  const d=s-par;
+  let cl=d<=-2?'ce':d===-1?'cbi':d===0?'cpar':d===1?'cbo':'cdb';
+  return `<td><span class="ci ${cl}">${s}</span></td>`;
+}
+function escapeHtml(s){return String(s||'').replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'})[c]);}
+</script>
+</body>
+</html>
