@@ -5307,12 +5307,14 @@ function dbbStatus(g,pls){const dbs=g.dbbState;if(!dbs)return'';
       ${[0,1].map(t=>{
         const tot=t===0?totA:totB;
         const isLeader=lead===t;
+        const mainLbl=lead===-1?'All square':(isLeader?`${gap} up`:`${gap} down`);
         const bg=lead===-1?'#f8fafc':(isLeader?'#059669':'#f1f5f9');
         const col=lead===-1?'#1e293b':(isLeader?'#fff':'#1e293b');
         return`<div style="flex:1;text-align:center;padding:12px;background:${bg};color:${col};border-radius:10px">
           <div class="fw8 f11" style="opacity:.85;margin-bottom:4px">${isLeader?'🏆 ':''}${esc(tNames[t])}</div>
-          <div class="fw8" style="font-size:30px">${tot}<span style="font-size:14px;opacity:.85"> up</span></div>
-          <div class="f11" style="margin-top:6px;opacity:.8">M1: ${dbs.m1.hw[t]||0} · M2: ${dbs.m2.hw[t]||0}</div>
+          <div class="fw8" style="font-size:26px;line-height:1.1">${mainLbl}</div>
+          <div class="f11" style="margin-top:6px;opacity:.75">${tot} trou${tot>1?'s':''} gagné${tot>1?'s':''}</div>
+          <div class="f11" style="margin-top:3px;opacity:.8">M1: ${dbs.m1.hw[t]||0} · M2: ${dbs.m2.hw[t]||0}</div>
         </div>`;
       }).join('')}
     </div>
@@ -6068,13 +6070,13 @@ function results(){
     `<button class="btn bp mb0" onclick="go('home')">🏠 Accueil</button>`}</div>
     ${!fromHistory?`<button class="btn bgr mt8" onclick="startSetup()">🏌️ Nouvelle partie</button>`:''}
   </div>`}
-function rScore(g,r){if(g.gameType==='stableford')return r.pts+' pts';if(['meilleurscore','scramble','foursome','patsome','fourball'].includes(g.gameType))return'Brut '+r.gr;if(g.gameType==='dbb'){const d=g.dbbState;const t=g.teamAssign?.[r.p.id];const tot=(d?.m1.hw[t]||0)+(d?.m2.hw[t]||0);return tot+' up';}if(r.gpts!=null)return(r.gpts>0?'+':'')+r.gpts+(g.gameType==='nassau'?'€':' pts');if(g.gameType==='matchplay')return(g.matchState?.holesWon[r.pi]||0)+' trous';return'Net '+r.net}
+function rScore(g,r){if(g.gameType==='stableford')return r.pts+' pts';if(['meilleurscore','scramble','foursome','patsome','fourball'].includes(g.gameType))return'Brut '+r.gr;if(g.gameType==='dbb'){const d=g.dbbState;const ti=g.teamAssign?.[r.p.id];const oti=ti===0?1:0;const tot=(d?.m1.hw[ti]||0)+(d?.m2.hw[ti]||0);const oth=(d?.m1.hw[oti]||0)+(d?.m2.hw[oti]||0);const diff=tot-oth;return diff>0?diff+' up':(diff<0?Math.abs(diff)+' down':'All square');}if(r.gpts!=null)return(r.gpts>0?'+':'')+r.gpts+(g.gameType==='nassau'?'€':' pts');if(g.gameType==='matchplay')return(g.matchState?.holesWon[r.pi]||0)+' trous';return'Net '+r.net}
 function rScoreFull(g,r){
   if(g.gameType==='stableford')return`<div class="fw7 tgold f14">${r.pts} pts</div>`;
   if(['meilleurscore','scramble','foursome','patsome','fourball'].includes(g.gameType)){const c2=cById(g.courseId);const par=c2?.holes.reduce((s,h)=>s+h.par,0)||72;const diff=r.gr-par;return`<div class="fw7 f14">Brut : ${r.gr}</div><div class="f11 tm">${diff>0?'+':''}${diff} / par</div>`}
   if(r.gpts!=null){const unit=g.gameType==='nassau'?'€':' pts';return`<div class="fw7 f14 ${r.gpts>0?'tg':r.gpts<0?'tr':''}">${r.gpts>0?'+':''}${r.gpts}${unit}</div>`}
   if(g.gameType==='matchplay')return`<div class="fw7 f14">${g.matchState?.holesWon[r.pi]||0} trous gagnés</div>`;
-  if(g.gameType==='dbb'){const d=g.dbbState;const t=g.teamAssign[r.p.id];const tot=(d?.m1.hw[t]||0)+(d?.m2.hw[t]||0);return`<div class="fw7 f14" style="color:var(--g)">${tot} up</div><div class="f11 tm">M1: ${d?.m1.hw[t]||0} · M2: ${d?.m2.hw[t]||0}</div>`}
+  if(g.gameType==='dbb'){const d=g.dbbState;const ti=g.teamAssign[r.p.id];const oti=ti===0?1:0;const tot=(d?.m1.hw[ti]||0)+(d?.m2.hw[ti]||0);const oth=(d?.m1.hw[oti]||0)+(d?.m2.hw[oti]||0);const diff=tot-oth;const lbl=diff>0?diff+' up':(diff<0?Math.abs(diff)+' down':'All square');return`<div class="fw7 f14" style="color:var(--g)">${lbl}</div><div class="f11 tm">${tot} trou${tot>1?'s':''} · M1:${d?.m1.hw[ti]||0} M2:${d?.m2.hw[ti]||0}</div>`}
   const diff=r.gr-(cById(g.courseId)?.holes.reduce((s,h)=>s+h.par,0)||72);
   return`<div class="fw7 f14">Net : ${r.net}</div><div class="f11 tm">Brut : ${r.gr} (${diff>0?'+':''}${diff})</div>`}
 function viewSC(){const g=DB.history[DB.history.length-1];if(g){DB.game=null;S.tab=0;go('scorecard')}}

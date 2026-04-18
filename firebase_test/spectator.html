@@ -189,17 +189,18 @@ function renderTeamSection(data){
     const gap=Math.abs(tot[0]-tot[1]);
 
     let html=`<div class="card"><div class="card-title">🏅 Double Best Ball</div>`;
-    // Score combiné prominent (max 2 trous gagnés par trou joué)
+    // Score en "up/down" selon la différence + total trous gagnés en sous-titre
     [0,1].forEach(ti=>{
       const cls=isTie?'team-card tie':(lead===ti?'team-card leader':'team-card second');
       const tname=ti===0?t0:t1;
+      const mainLbl=isTie?'All square':(lead===ti?`${gap} up`:`${gap} down`);
       html+=`<div class="${cls}">
         <div class="team-head">
           <div>
             <div class="team-name">${!isTie&&lead===ti?'🏆 ':''}${esc(tname)}</div>
-            <div class="team-sub">${isTie?'All square':(lead===ti?`Mène de ${gap}`:'Au classement')}</div>
+            <div class="team-sub">${tot[ti]} trou${tot[ti]>1?'s':''} gagné${tot[ti]>1?'s':''}</div>
           </div>
-          <div class="team-score">${tot[ti]} <span style="font-size:14px;opacity:.85">up</span></div>
+          <div class="team-score" style="font-size:24px;line-height:1.2">${mainLbl}</div>
         </div>
         <div class="team-stat">
           <span>Match 1 · ${m1.hw[ti]||0} tr.</span>
