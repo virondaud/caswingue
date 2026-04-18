@@ -584,20 +584,113 @@ function buildLiveSnapshot(){
   const g=DB.game;if(!g)return null;
   const course=cById(g.courseId);
   const pls=g.playerIds.map(id=>pById(id)).filter(Boolean);
-  return {
+  const hn=g.currentHole;
+  const nHoles=course?.holes?.length||18;
+
+  // Calculs handicap par joueur/trou (pour que le spectateur voie le net)
+  const strokesByPlayer=pls.map((_,pi)=>{
+    const arr=[];
+    for(let h=0;h<nHoles;h++)arr.push(hcpStr(g,pi,h));
+    return arr;
+  });
+
+  // Points Stableford par joueur/trou
+  const sfByPlayer=pls.map((_,pi)=>{
+    const arr=[];
+    for(let h=0;h<nHoles;h++){
+      const s=g.scores[h]?.[pi]||0;
+      const par=course?.holes[h]?.par||4;
+      arr.push(s>0?sfPoints(s,par,hcpStr(g,pi,h)):0);
+    }
+    return arr;
+  });
+
+  // Totaux par équipe selon le type de jeu
+  let teamData=null;
+  if(['scramble','foursome','patsome','fourball','meilleurscore','dbb'].includes(g.gameType)){
+    const rows=teamRunTotals(g,nHoles);
+    teamData={
+      mode:g.gameType,
+      fourballMode:g.fourballMode,
+      dbbHcpMode:g.dbbHcpMode,
+      totals:rows.map(r=>({ti:r.ti,name:r.tName,tot:r.tot,net:r.net,par:r.par,diff:r.diff,pts:r.pts,useNet:r.useNet}))
+    };
+    // Évolution trou par trou (total cumulé à chaque trou)
+    teamData.evolution=[];
+    for(let h=1;h<=nHoles;h++){
+      const rowsAt=teamRunTotals(g,h);
+      teamData.evolution.push(rowsAt.map(r=>({ti:r.ti,net:r.net,tot:r.tot,pts:r.pts,diff:r.diff})));
+    }
+  }
+
+  // États spécifiques
+  let dbbSt=null,dbbEvo=null;
+  if(g.gameType==='dbb'&&g.dbbState){
+    dbbSt={
+      m1:{hw:[...(g.dbbState.m1?.hw||[0,0])],score:g.dbbState.m1?.score||0,lead:g.dbbState.m1?.lead||null},
+      m2:{hw:[...(g.dbbState.m2?.hw||[0,0])],score:g.dbbState.m2?.score||0,lead:g.dbbState.m2?.lead||null},
+      total:[
+        (g.dbbState.m1?.hw?.[0]||0)+(g.dbbState.m2?.hw?.[0]||0),
+        (g.dbbState.m1?.hw?.[1]||0)+(g.dbbState.m2?.hw?.[1]||0)
+      ]
+    };
+    // Reconstruire l'évolution trou par trou : points gagnés par chaque équipe à chaque trou
+    dbbEvo=[];
+    let cumA=0,cumB=0;
+    const tAids=g.playerIds.map((id,pi)=>g.teamAssign?.[id]===0?pi:-1).filter(i=>i>=0);
+    const tBids=g.playerIds.map((id,pi)=>g.teamAssign?.[id]===1?pi:-1).filter(i=>i>=0);
+    for(let h=0;h<nHoles;h++){
+      const sc=g.scores[h]||[];
+      if(sc.some(s=>!s||s===0)){
+        // Trou pas encore joué complètement : pas d'incrément
+        dbbEvo.push({a:cumA,b:cumB,gainA:0,gainB:0});
+        continue;
+      }
+      const nets=sc.map((s,pi)=>s-strokesByPlayer[pi][h]);
+      const nA=tAids.map(pi=>nets[pi]).sort((x,y)=>x-y);
+      const nB=tBids.map(pi=>nets[pi]).sort((x,y)=>x-y);
+      let gA=0,gB=0;
+      // Match 1 : meilleurs nets
+      if(nA[0]<nB[0])gA++;else if(nB[0]<nA[0])gB++;
+      // Match 2 : 2es nets
+      if(nA[1]!=null&&nB[1]!=null){
+        if(nA[1]<nB[1])gA++;else if(nB[1]<nA[1])gB++;
+      }
+      cumA+=gA;cumB+=gB;
+      dbbEvo.push({a:cumA,b:cumB,gainA:gA,gainB:gB});
+    }
+  }
+  let matchSt=null;
+  if(g.gameType==='matchplay'&&g.matchState){
+    matchSt={hw:[...g.matchState.holesWon],score:g.matchState.score,lead:g.matchState.lead};
+  }
+
+  const snap={
     updatedAt:Date.now(),
-    startedAt:g.startedAt,
+    startedAt:g.startedAt||Date.now(),
     courseName:course?.name||'Parcours',
-    gameType:g.gameType,
-    gameTypeLabel:GT[g.gameType]?.label||g.gameType,
-    tee:g.tee,
-    useHandicap:g.useHandicap,
-    currentHole:g.currentHole,
-    holes:(course?.holes||[]).map(h=>({par:h.par,handicap:h.handicap,distance:h.distance||0})),
-    players:pls.map((p,pi)=>({name:p.name,index:p.index,idx:pi})),
-    scores:g.scores,
-    teams:g.useTeams?{names:g.teamNames,assign:g.teamAssign}:null
+    gameType:g.gameType||'strokeplay',
+    gameTypeLabel:GT[g.gameType]?.label||g.gameType||'',
+    gameIcon:GT[g.gameType]?.icon||'⛳',
+    gameColor:GT[g.gameType]?.color||'#16a34a',
+    tee:g.tee||'jaune',
+    useHandicap:!!g.useHandicap,
+    fourballMode:g.fourballMode||null,
+    dbbHcpMode:g.dbbHcpMode||null,
+    currentHole:g.currentHole||0,
+    holes:(course?.holes||[]).map(h=>({par:h.par||4,handicap:h.handicap||0,distance:h.distance||0})),
+    players:pls.map((p,pi)=>({name:p.name||'?',index:p.index||0,idx:pi})),
+    scores:(g.scores||[]).map(row=>(row||[]).map(v=>v||0)),
+    strokes:strokesByPlayer,
+    stableford:sfByPlayer,
+    teams:g.useTeams?{names:g.teamNames||['A','B'],assign:g.teamAssign||{}}:null,
+    teamData:teamData||null,
+    dbbState:dbbSt||null,
+    dbbEvolution:dbbEvo||null,
+    matchState:matchSt||null
   };
+  // Nettoyer les undefined récursivement (Firebase refuse undefined)
+  return JSON.parse(JSON.stringify(snap));
 }
 function shareLiveWhatsApp(url){
   const g=DB.game;if(!g){window.open('https://wa.me/?text='+encodeURIComponent('🏌️ Suis ma partie de golf en live : '+url),'_blank');return;}
