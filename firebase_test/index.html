@@ -599,6 +599,26 @@ function buildLiveSnapshot(){
     teams:g.useTeams?{names:g.teamNames,assign:g.teamAssign}:null
   };
 }
+function shareLiveWhatsApp(url){
+  const g=DB.game;if(!g){window.open('https://wa.me/?text='+encodeURIComponent('🏌️ Suis ma partie de golf en live : '+url),'_blank');return;}
+  const course=cById(g.courseId);
+  const pls=g.playerIds.map(id=>pById(id)).filter(Boolean);
+  const dt=new Date(g.startedAt);
+  const heure=dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const teeLabel=g.tee==='jaune'?'🟡 Jaune':'⚪ Blanc';
+  const gti=GT[g.gameType];
+  let msg=`🏌️ *Partie de golf en cours !*\n\n`;
+  msg+=`⛳ ${course?.name||'Parcours'}\n`;
+  msg+=`🕐 Départ ${heure} · ${teeLabel}\n`;
+  msg+=`${gti?.icon||'🎯'} ${gti?.label||g.gameType}\n`;
+  if(pls.length){
+    msg+=`👥 ${pls.map(p=>p.name).join(' · ')}\n`;
+  }
+  msg+=`\n📡 *Suis mes scores en direct :*\n${url}\n\n`;
+  msg+=`🟢 Mise à jour automatique à chaque trou`;
+  const u='https://wa.me/?text='+encodeURIComponent(msg);
+  if(window.navigator.standalone){save();location.href=u;}else{window.open(u,'_blank');}
+}
 function showLiveModal(id,url){
   const existing=document.getElementById('live-modal');if(existing)existing.remove();
   const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent(url);
@@ -612,7 +632,7 @@ function showLiveModal(id,url){
     <div style="background:#f1f5f9;padding:10px 12px;border-radius:10px;margin-bottom:14px;word-break:break-all;font-size:12px;font-family:monospace">${url}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn bsm bp mb0" style="flex:1" onclick="navigator.clipboard.writeText('${url}');this.textContent='✅ Copié'">📋 Copier</button>
-      <button class="btn bsm mb0" style="flex:1;background:#25D366;color:#fff;border:none" onclick="window.open('https://wa.me/?text='+encodeURIComponent('🏌️ Suis ma partie en live : ${url}'),'_blank')">📲 WhatsApp</button>
+      <button class="btn bsm mb0" style="flex:1;background:#25D366;color:#fff;border:none" onclick="shareLiveWhatsApp('${url}')">📲 WhatsApp</button>
     </div>
     <div class="f g8 mt8">
       <button class="btn bsm bo mb0" style="flex:1" onclick="document.getElementById('live-modal').remove()">Fermer</button>
