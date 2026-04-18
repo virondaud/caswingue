@@ -534,9 +534,9 @@ ASSETS["swingue"]="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAkACQAAD/4QCSRXhpZg
 const COLORS=['#16a34a','#dc2626','#1d4ed8','#d97706','#7c3aed','#0891b2'];
 function lg(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
 function ls(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
-let DB={courses:lg('gm_c',[]),players:lg('gm_p',[]),game:lg('gm_g',null),history:lg('gm_h',[]),favGames:lg('gm_fg',[]),championships:lg('gm_ch',[]),customShopLinks:lg('gm_csl',[]),customAppLinks:lg('gm_cal',[]),customCompLinks:lg('gm_ccl',[]),customWazeDest:lg('gm_cwd',[]),practice:lg('gm_prac',[])};
+let DB={courses:lg('gm_c',[]),players:lg('gm_p',[]),game:lg('gm_g',null),history:lg('gm_h',[]),favGames:lg('gm_fg',[]),championships:lg('gm_ch',[]),customShopLinks:lg('gm_csl',[]),customAppLinks:lg('gm_cal',[]),customCompLinks:lg('gm_ccl',[]),customWazeDest:lg('gm_cwd',[]),practice:lg('gm_prac',[]),cloudBackup:lg('gm_cb',{enabled:false})};
 window.DB=DB;
-function save(){ls('gm_c',DB.courses);ls('gm_p',DB.players);ls('gm_g',DB.game);ls('gm_h',DB.history);ls('gm_fg',DB.favGames);ls('gm_ch',DB.championships);ls('gm_csl',DB.customShopLinks);ls('gm_cal',DB.customAppLinks);ls('gm_ccl',DB.customCompLinks);ls('gm_cwd',DB.customWazeDest);ls('gm_prac',DB.practice||[]);pushLive();}
+function save(){ls('gm_c',DB.courses);ls('gm_p',DB.players);ls('gm_g',DB.game);ls('gm_h',DB.history);ls('gm_fg',DB.favGames);ls('gm_ch',DB.championships);ls('gm_csl',DB.customShopLinks);ls('gm_cal',DB.customAppLinks);ls('gm_ccl',DB.customCompLinks);ls('gm_cwd',DB.customWazeDest);ls('gm_prac',DB.practice||[]);ls('gm_cb',DB.cloudBackup||{enabled:false});try{if(typeof pushLive==='function')pushLive();}catch(e){}try{if(typeof cloudSync==='function')cloudSync();}catch(e){}}
 
 // ══ 🔥 FIREBASE LIVE SHARE ════════════════════════════════════════════════
 let fbApp=null,fbDb=null,fbReady=false;
@@ -749,7 +749,7 @@ function defHoles(){
 let S={view:DB.game?'playing':'home',setup:{},ec:null,tab:0,rulesGame:null};window.S=S;
 
 // ══ RENDER ════════════════════════════════════════════════════════════════
-const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView};
+const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView};
 const APP_FOOTER='<div style="text-align:center;padding:18px 0 10px;color:#94a3b8;font-size:12px">⛳ Ça Swingue Manager <b>v13</b> · © 2026 Virnaoned</div>';
 function render(){
   const f=VIEWS[S.view];
@@ -4110,13 +4110,15 @@ function home(){
     </div>
     <div class="st">💾 Mes données</div>
     <div class="card">
-      <p style="font-size:13px;color:var(--mu);margin-bottom:12px;line-height:1.5">Sauvegardez vos données pour les conserver après une mise à jour, ou restaurez-les sur un autre appareil. Vous pouvez <b>choisir précisément</b> ce que vous sauvegardez ou restaurez. À la restauration, le mode <b>Fusion</b> préserve vos données actuelles et les parcours ajoutés par les mises à jour.</p>
+      <p style="font-size:13px;color:var(--mu);margin-bottom:12px;line-height:1.5">Sauvegardez vos données pour les conserver après une mise à jour, ou restaurez-les sur un autre appareil. Vous pouvez <b>choisir précisément</b> ce que vous sauvegardez ou restaurez.</p>
       <div class="rb">
-        <button class="btn bp mb0" onclick="exportData()">📥 Sauvegarder</button>
+        <button class="btn bp mb0" onclick="exportData()">📥 Fichier local</button>
         <button class="btn bg2 mb0" onclick="document.getElementById('import-file').click()">📤 Restaurer</button>
       </div>
       <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
       <div id="backup-status"></div>
+      <div class="dv"></div>
+      <button class="btn mb0" style="background:linear-gradient(135deg,#0891b2,#06b6d4);color:#fff;border:none" onclick="go('cloudBackup')">☁️ Backup cloud ${cloudEnabled()?'· <b>Actif</b>':'(activer)'}</button>
     </div>
   </div></div>
   <div class="bnav">
@@ -7492,6 +7494,179 @@ var BACKUP_CATS=[
   {key:'customCompLinks',label:'Compétitions perso',emoji:'🏅',count:function(){return (DB.customCompLinks||[]).length}},
   {key:'customWazeDest',label:'Destinations Waze perso',emoji:'🚗',count:function(){return (DB.customWazeDest||[]).length}}
 ];
+
+// ══ ☁️ CLOUD BACKUP (Firebase) ════════════════════════════════════════════
+var CLOUD_SYNC_TIMER=null;
+function cloudCode(){return DB.cloudBackup?.code||null;}
+function cloudEnabled(){return !!(DB.cloudBackup&&DB.cloudBackup.enabled&&DB.cloudBackup.code);}
+function cloudGenCode(){
+  var chars='abcdefghjkmnpqrstuvwxyz23456789';
+  var s='user-';for(var i=0;i<6;i++)s+=chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
+function cloudActivate(){
+  if(!initFirebase()){alert('⚠️ Firebase non configuré. Vérifie firebase-config.js');return;}
+  if(!DB.cloudBackup)DB.cloudBackup={};
+  if(!DB.cloudBackup.code)DB.cloudBackup.code=cloudGenCode();
+  if(!DB.cloudBackup.categories){
+    DB.cloudBackup.categories={};
+    BACKUP_CATS.forEach(c=>{DB.cloudBackup.categories[c.key]=true;});
+  }
+  DB.cloudBackup.enabled=true;
+  DB.cloudBackup.lastSync=null;
+  save();
+  alert('✅ Cloud backup activé !\n\nTon code personnel :\n'+DB.cloudBackup.code+'\n\n⚠️ NOTE-LE quelque part (mot de passe, notes iCloud…). Il te permettra de restaurer tes données sur un autre appareil.');
+  render();
+}
+function cloudDeactivate(){
+  conf('Désactiver le cloud backup ?','Tes données cloud seront supprimées. Ton backup local est conservé.',()=>{
+    if(cloudEnabled()&&typeof fbReady!=='undefined'&&fbReady){
+      try{fbDb.ref('users/'+DB.cloudBackup.code).remove();}catch(e){}
+    }
+    DB.cloudBackup={enabled:false};
+    save();go('home');
+    setTimeout(()=>alert('🔴 Cloud backup désactivé. Tes données restent localement.'),200);
+  });
+}
+function cloudSync(){
+  if(!cloudEnabled())return;
+  if(typeof initFirebase!=='function'||!initFirebase())return;
+  if(CLOUD_SYNC_TIMER)clearTimeout(CLOUD_SYNC_TIMER);
+  CLOUD_SYNC_TIMER=setTimeout(()=>{
+    try{
+      var payload={updatedAt:Date.now(),version:'1.2',app:'CaSwingueManager'};
+      var cats=DB.cloudBackup.categories||{};
+      BACKUP_CATS.forEach(c=>{
+        if(cats[c.key]!==false)payload[c.key]=DB[c.key]!==undefined?DB[c.key]:null;
+      });
+      fbDb.ref('users/'+DB.cloudBackup.code).set(payload)
+        .then(()=>{DB.cloudBackup.lastSync=Date.now();try{localStorage.setItem('gm_cb',JSON.stringify(DB.cloudBackup));}catch(e){}})
+        .catch(e=>{console.warn('Cloud sync failed:',e.message);});
+    }catch(e){console.warn('cloudSync error:',e);}
+  },2000);
+}
+function cloudSyncNow(){
+  if(!cloudEnabled()){alert('Cloud backup désactivé.');return;}
+  if(!initFirebase()){alert('⚠️ Firebase non disponible');return;}
+  if(CLOUD_SYNC_TIMER){clearTimeout(CLOUD_SYNC_TIMER);CLOUD_SYNC_TIMER=null;}
+  var payload={updatedAt:Date.now(),version:'1.2',app:'CaSwingueManager'};
+  var cats=DB.cloudBackup.categories||{};
+  BACKUP_CATS.forEach(c=>{
+    if(cats[c.key]!==false)payload[c.key]=DB[c.key]!==undefined?DB[c.key]:null;
+  });
+  fbDb.ref('users/'+DB.cloudBackup.code).set(payload).then(()=>{
+    DB.cloudBackup.lastSync=Date.now();save();
+    alert('✅ Synchronisé avec succès\n\n'+new Date().toLocaleString('fr-FR'));
+    render();
+  }).catch(e=>alert('❌ Erreur : '+e.message));
+}
+function cloudRestorePrompt(){
+  var code=prompt('Entre le code à restaurer (format : user-xxxxxx) :','');
+  if(!code)return;
+  code=code.trim().toLowerCase();
+  if(!/^user-[a-z0-9]{4,10}$/.test(code)){alert('Format invalide. Attendu : user-xxxxxx');return;}
+  if(!initFirebase()){alert('⚠️ Firebase non disponible');return;}
+  fbDb.ref('users/'+code).once('value').then(snap=>{
+    var data=snap.val();
+    if(!data){alert('❌ Aucune donnée trouvée pour ce code.');return;}
+    cloudRestoreConfirm(code,data);
+  }).catch(e=>alert('❌ Erreur : '+e.message));
+}
+function cloudRestoreConfirm(code,data){
+  var summary=[];
+  BACKUP_CATS.forEach(c=>{
+    var v=data[c.key];if(v==null)return;
+    var n=Array.isArray(v)?v.length:(v?1:0);
+    if(n>0)summary.push('• '+c.emoji+' '+c.label+' : '+n);
+  });
+  if(summary.length===0){alert('❌ Aucune donnée exploitable dans ce backup.');return;}
+  var dt=data.updatedAt?new Date(data.updatedAt).toLocaleString('fr-FR'):'inconnue';
+  var res=confirm('Code : '+code+'\nDate : '+dt+'\n\nContenu :\n'+summary.join('\n')+'\n\nOK = FUSION (ajoute aux données actuelles)\nAnnuler = REMPLACEMENT (écrase tout)');
+  var mode=res?'fusion':'replace';
+  if(mode==='replace'&&!confirm('⚠️ ATTENTION\n\nRemplacer va SUPPRIMER toutes tes données actuelles pour les remplacer par celles du backup cloud.\n\nCette action est IRRÉVERSIBLE. Continuer ?'))return;
+  cloudDoRestore(data,mode);
+}
+function cloudDoRestore(data,mode){
+  BACKUP_CATS.forEach(c=>{
+    var v=data[c.key];if(v==null)return;
+    if(mode==='replace'){DB[c.key]=v;}
+    else{
+      if(Array.isArray(v)&&Array.isArray(DB[c.key])){
+        var existingIds=new Set((DB[c.key]||[]).map(x=>x&&x.id).filter(Boolean));
+        v.forEach(item=>{if(!item||(item.id&&existingIds.has(item.id)))return;DB[c.key].push(item);});
+      }else if(typeof v==='object'&&v&&typeof DB[c.key]==='object'){
+        Object.assign(DB[c.key]||{},v);
+      }else{DB[c.key]=v;}
+    }
+  });
+  save();
+  alert('✅ Restauration terminée ('+mode+')\n\nL\'app va se recharger pour appliquer tous les changements.');
+  location.reload();
+}
+function cloudBackupView(){
+  var enabled=cloudEnabled();
+  var code=cloudCode();
+  var last=DB.cloudBackup?.lastSync?new Date(DB.cloudBackup.lastSync).toLocaleString('fr-FR'):'jamais';
+  return`<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>☁️ Backup cloud</h1></div>
+  <div class="content an">
+    <div class="card" style="background:linear-gradient(135deg,#0891b2,#06b6d4);color:#fff">
+      <div class="f fc g8"><div style="font-size:32px">☁️</div>
+        <div><div class="fw8 f14">Sauvegarde cloud Firebase</div>
+        <div class="f12" style="opacity:.9">Backup auto + restauration multi-appareils</div></div>
+      </div>
+    </div>
+    ${!enabled?`<div class="card">
+      <div class="ct">Activer le cloud backup</div>
+      <p class="f13 tm" style="margin-bottom:12px">Un code personnel sera généré. Tes données seront synchronisées automatiquement à chaque modification. Tu pourras les restaurer sur un autre appareil en entrant ce code.</p>
+      <button class="btn bp mb0" onclick="cloudActivate()">☁️ Activer</button>
+    </div>`:`<div class="card">
+      <div class="ct">Statut : ✅ Actif</div>
+      <div class="sr"><span class="f12 tm">Dernière synchronisation</span><span class="fw7 f13">${last}</span></div>
+      <div class="dv"></div>
+      <div class="f12 tm" style="margin-bottom:6px">Ton code personnel (à noter)</div>
+      <div style="background:#f1f5f9;padding:12px;border-radius:10px;margin-bottom:10px;text-align:center">
+        <div id="cloud-code-display" style="font-family:monospace;font-weight:800;font-size:18px;letter-spacing:1px;color:#0891b2" data-code="${esc(code)}">${'•'.repeat(code.length)}</div>
+        <div class="f g8 mt8">
+          <button class="btn bsm bo mb0" style="flex:1" onclick="(function(){var d=document.getElementById('cloud-code-display');d.textContent=d.dataset.code})()">👁️ Afficher</button>
+          <button class="btn bsm bp mb0" style="flex:1" onclick="navigator.clipboard.writeText('${esc(code)}');this.textContent='✅'">📋 Copier</button>
+        </div>
+      </div>
+      <div class="rb">
+        <button class="btn bp mb0" onclick="cloudSyncNow()">🔄 Sync</button>
+        <button class="btn bo mb0" onclick="go('cloudCats')">⚙️ Catégories</button>
+      </div>
+      <button class="btn bd mt8" onclick="cloudDeactivate()">🔴 Désactiver</button>
+    </div>`}
+    <div class="card">
+      <div class="ct">Restaurer depuis un code</div>
+      <p class="f13 tm" style="margin-bottom:12px">Tu as un code (nouvel iPhone, autre membre de la famille) ? Récupère les données associées.</p>
+      <button class="btn bg2 mb0" onclick="cloudRestorePrompt()">📥 Restaurer avec un code</button>
+    </div>
+    <div class="f11 tm" style="margin-top:10px;padding:10px;background:#f8fafc;border-radius:10px;line-height:1.5">
+      ℹ️ <b>Confidentialité :</b> tes données sont stockées sur Firebase (Google) dans ta zone privée, accessible uniquement via ton code. Aucun login requis.<br>
+      ⚠️ <b>Important :</b> perds ton code = perds l'accès à tes données cloud. Note-le quelque part de sûr.
+    </div>
+  </div>`;
+}
+function cloudCatsView(){
+  var cats=DB.cloudBackup?.categories||{};
+  return`<div class="hdr"><button class="back" onclick="go('cloudBackup')">‹</button><h1>⚙️ Catégories cloud</h1></div>
+  <div class="content an">
+    <p class="f13 tm" style="margin-bottom:10px">Choisis ce qui est synchronisé sur le cloud. Les catégories décochées restent en local uniquement.</p>
+    <div class="card">
+      ${BACKUP_CATS.map(c=>{
+        var checked=cats[c.key]!==false;
+        var n=c.count();
+        return`<label class="f fc g8" style="padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">
+          <input type="checkbox" ${checked?'checked':''} onchange="(function(){if(!DB.cloudBackup)DB.cloudBackup={};if(!DB.cloudBackup.categories)DB.cloudBackup.categories={};DB.cloudBackup.categories['${c.key}']=event.target.checked;save();})()" style="width:20px;height:20px;accent-color:var(--gdk)">
+          <div style="font-size:22px;width:28px;text-align:center">${c.emoji}</div>
+          <div style="flex:1"><div class="fw7 f13">${c.label}</div><div class="f11 tm">${n} élément${n>1?'s':''}</div></div>
+        </label>`;
+      }).join('')}
+    </div>
+    <button class="btn bp mt12" onclick="cloudSyncNow()">🔄 Synchroniser avec les nouveaux choix</button>
+  </div>`;
+}
 
 function exportData(){
   // Étape 1 : modal de sélection des catégories
