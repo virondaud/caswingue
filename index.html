@@ -4928,10 +4928,10 @@ const DEFAULT_CLUBS=[
   {id:'f7',name:'Fer 7',icon:'🔩',full:null,threeQ:null,half:null},
   {id:'f8',name:'Fer 8',icon:'🔩',full:null,threeQ:null,half:null},
   {id:'f9',name:'Fer 9',icon:'🔩',full:null,threeQ:null,half:null},
-  {id:'pw',name:'PW (Pitching Wedge)',icon:'⚡',full:null,threeQ:null,half:null},
-  {id:'gw',name:'GW (Gap Wedge, 50-52°)',icon:'⚡',full:null,threeQ:null,half:null},
-  {id:'sw',name:'SW (Sand Wedge, 54-56°)',icon:'⚡',full:null,threeQ:null,half:null},
-  {id:'lw',name:'LW (Lob Wedge, 58-60°)',icon:'⚡',full:null,threeQ:null,half:null}
+  {id:'pw48',name:'PW 48°',icon:'⚡',full:null,threeQ:null,half:null},
+  {id:'gw52',name:'GW 52°',icon:'⚡',full:null,threeQ:null,half:null},
+  {id:'sw56',name:'SW 56°',icon:'⚡',full:null,threeQ:null,half:null},
+  {id:'lw60',name:'LW 60°',icon:'⚡',full:null,threeQ:null,half:null}
 ];
 
 function getPlayerClubs(p){
@@ -5113,7 +5113,13 @@ function clubsEditView(){
     <div class="card" style="padding:12px;${!unlocked?'opacity:.85':''}">
       <div class="f fc g8 mb0" style="margin-bottom:10px">
         <div style="font-size:22px">${c.icon}</div>
-        <div class="fw7 f14">${esc(c.name)}</div>
+        <div style="flex:1">
+          <div class="fw7 f14">${esc(c.name)}</div>
+          ${unlocked?`<div class="f11 tm">
+            <button class="btn bxs bo mb0" style="padding:2px 6px;font-size:10px" onclick="renameClub('${p.id}','${c.id}')">✏️ Renommer</button>
+          </div>`:''}
+        </div>
+        ${unlocked?`<button class="btn bxs bd mb0" style="padding:4px 8px" onclick="removeClub('${p.id}','${c.id}')" title="Supprimer ce club">🗑</button>`:''}
       </div>
       <div class="f g8">
         <div class="fg mb0" style="flex:1"><label class="lbl">Plein coup (m)</label>
@@ -5127,9 +5133,117 @@ function clubsEditView(){
         </div>
       </div>
     </div>`).join('')}
-    ${unlocked?`<button class="btn bd mt8" onclick="resetClubs('${p.id}')">🔄 Tout réinitialiser à vide</button>`:''}
+    ${unlocked?`
+    <button class="btn bp mt8" onclick="addCustomClub('${p.id}')">➕ Ajouter un club personnalisé</button>
+    <button class="btn bg2 mt8" onclick="addStandardWedges('${p.id}')">⚡ Ajouter les wedges standard</button>
+    <button class="btn bd mt8" onclick="resetClubs('${p.id}')">🔄 Réinitialiser au set par défaut</button>
+    `:''}
     <button class="btn bp mt8" onclick="S.clubsEditMode=false;go('clubs')">✅ Terminer</button>
   </div>`;
+}
+
+// Ajouter un club personnalisé (wedge spécifique par ex.)
+function addCustomClub(playerId){
+  var p=pById(playerId);if(!p)return;
+  var name=prompt('Nom du nouveau club (ex: "SW 54°", "Chipper", "Approach 52") :','');
+  if(!name||!name.trim())return;
+  name=name.trim();
+  // Détermine une icône selon le nom
+  var icon='🔩';
+  var lower=name.toLowerCase();
+  if(lower.includes('wedge')||lower.includes('wg')||lower.match(/\b(pw|gw|sw|lw|aw)\b/)||lower.includes('°'))icon='⚡';
+  else if(lower.includes('bois')||lower.includes('wood'))icon='🪵';
+  else if(lower.includes('hybride')||lower.includes('hybrid'))icon='↪️';
+  else if(lower.includes('driver'))icon='🏌️';
+  else if(lower.includes('putter'))icon='🟢';
+  else if(lower.includes('chipper'))icon='🥄';
+  var id='custom-'+Date.now().toString(36);
+  if(!p.clubs)p.clubs=[];
+  p.clubs.push({id:id,name:name,icon:icon,full:null,threeQ:null,half:null,custom:true});
+  save();render();
+}
+
+// Renommer un club
+function renameClub(playerId,clubId){
+  var p=pById(playerId);if(!p)return;
+  var club=p.clubs?.find(c=>c.id===clubId);if(!club)return;
+  var newName=prompt('Nouveau nom :',club.name);
+  if(!newName||!newName.trim())return;
+  club.name=newName.trim();
+  save();render();
+}
+
+// Supprimer un club
+function removeClub(playerId,clubId){
+  var p=pById(playerId);if(!p)return;
+  var club=p.clubs?.find(c=>c.id===clubId);if(!club)return;
+  conf('Supprimer '+club.name+' ?','Les distances seront perdues.',()=>{
+    p.clubs=p.clubs.filter(c=>c.id!==clubId);
+    save();render();
+  });
+}
+
+// Ouvre un sélecteur visuel pour ajouter des wedges par loft
+function addStandardWedges(playerId){
+  var p=pById(playerId);if(!p)return;
+  if(!p.clubs)p.clubs=[];
+  var existingIds=new Set(p.clubs.map(c=>c.id));
+
+  // Catalogue complet des lofts courants
+  var wedgeCatalog=[
+    {group:'Pitching Wedge',lofts:[
+      {id:'pw44',name:'PW 44°'},
+      {id:'pw46',name:'PW 46°'},
+      {id:'pw48',name:'PW 48°'}
+    ]},
+    {group:'Gap Wedge / Approach',lofts:[
+      {id:'gw50',name:'GW 50°'},
+      {id:'gw52',name:'GW 52°'}
+    ]},
+    {group:'Sand Wedge',lofts:[
+      {id:'sw54',name:'SW 54°'},
+      {id:'sw56',name:'SW 56°'},
+      {id:'sw58',name:'SW 58°'}
+    ]},
+    {group:'Lob Wedge',lofts:[
+      {id:'lw58',name:'LW 58°'},
+      {id:'lw60',name:'LW 60°'},
+      {id:'lw62',name:'LW 62°'},
+      {id:'lw64',name:'LW 64°'}
+    ]}
+  ];
+
+  var existing=document.getElementById('wedge-mo');if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.id='wedge-mo';
+  div.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:400;align-items:flex-end;padding:0';
+  var html='<div style="background:#fff;border-radius:20px 20px 0 0;padding:20px;width:100%;max-height:85vh;overflow-y:auto">';
+  html+='<div style="font-weight:800;font-size:17px;margin-bottom:4px">⚡ Ajouter des wedges</div>';
+  html+='<div style="font-size:12px;color:#64748b;margin-bottom:14px">Choisis les lofts que tu as dans ton sac. Tu pourras les renommer ensuite.</div>';
+  wedgeCatalog.forEach(cat=>{
+    html+='<div class="ct" style="margin-top:10px;font-size:13px">'+cat.group+'</div>';
+    html+='<div class="f g8" style="flex-wrap:wrap;margin-bottom:6px">';
+    cat.lofts.forEach(l=>{
+      var already=existingIds.has(l.id);
+      html+='<button class="btn bsm mb0" style="flex:1 1 45%;'+(already?'background:#d1fae5;color:#065f46;border-color:#10b981':'')+'" onclick="addSingleWedge(\''+playerId+'\',\''+l.id+'\',\''+l.name+'\');this.textContent=\'✅ '+l.name+'\';this.style.background=\'#d1fae5\';this.style.color=\'#065f46\'" '+(already?'disabled':'')+'>'+(already?'✅ ':'➕ ')+l.name+'</button>';
+    });
+    html+='</div>';
+  });
+  html+='<div class="f11 tm mt8" style="padding:10px;background:#f8fafc;border-radius:10px">';
+  html+='💡 Les <b>angles de loft</b> courants : plus le loft est grand, plus la balle monte haut et va court.<br>';
+  html+='• <b>PW</b> : approches longues · <b>GW/AW</b> : mi-approches<br>';
+  html+='• <b>SW</b> : bunkers et lobs moyens · <b>LW</b> : lobs courts et sorties difficiles</div>';
+  html+='<button class="btn bo mt8" onclick="document.getElementById(\'wedge-mo\').remove();render()">Terminé</button>';
+  html+='</div>';
+  div.innerHTML=html;
+  document.body.appendChild(div);
+}
+function addSingleWedge(playerId,id,name){
+  var p=pById(playerId);if(!p)return;
+  if(!p.clubs)p.clubs=[];
+  if(p.clubs.find(c=>c.id===id))return;
+  p.clubs.push({id:id,name:name,icon:'⚡',full:null,threeQ:null,half:null,custom:true});
+  save();
 }
 function resetClubs(pid){
   conf('Réinitialiser toutes les distances ?','',()=>{
@@ -7814,6 +7928,96 @@ function replayConfig(histIdx){
 }
 
 // ══ STATS & ANALYSES ══════════════════════════════════════════════════════
+// ══ CACHE GLOBAL & AGRÉGATION ═════════════════════════════════════════════
+let _globalCache={};// {code: {info, rounds, fetchedAt}}
+function fetchGlobalPlayerData(code,forceRefresh){
+  if(!forceRefresh&&_globalCache[code]&&(Date.now()-_globalCache[code].fetchedAt<60000)){
+    return Promise.resolve(_globalCache[code]);
+  }
+  if(!initFirebase())return Promise.reject(new Error('Firebase non prêt'));
+  return waitForAuth(3000).then(()=>
+    fbDb.ref('players/'+code).once('value').then(snap=>{
+      const data=snap.val()||{info:null,rounds:{}};
+      const rounds=Object.entries(data.rounds||{}).map(([rid,r])=>Object.assign({rid},r));
+      _globalCache[code]={info:data.info||null,rounds,fetchedAt:Date.now()};
+      return _globalCache[code];
+    })
+  );
+}
+// Normalise une manche (local ou globale) pour calculs stats unifiés
+function normalizeRound(source,playerId,g,code){
+  if(source==='local'){
+    const pi=g.playerIds.indexOf(playerId);
+    if(pi<0)return null;
+    const course=cById(g.courseId);
+    if(!course)return null;
+    const scoresForP=g.scores.map(hs=>hs[pi]||0);
+    // Calcul des strokes (hcp)
+    const strokes=scoresForP.map((_,hi)=>hcpStr(g,pi,hi));
+    return {
+      source:'local',gameId:g.id,startedAt:g.startedAt,
+      courseName:course.name,coursePar:course.holes.reduce((s,h)=>s+h.par,0),
+      holesPar:course.holes.map(h=>h.par),
+      scores:scoresForP,strokes
+    };
+  }
+  // Global : déjà un objet r
+  const strokes=(g.scores||[]).map((_,hi)=>{
+    // Approximation : utilise le playerIndex stocké (ou 0 si non dispo)
+    // NB : pour les stats globales on n'a pas accès au game complet donc approx
+    const pIdx=g.playerIndex||18;
+    const hdjv=pIdx;// approximation simple : idx ≈ hdj si slope standard
+    const hHcp=g.holesHcp?g.holesHcp[hi]||hi+1:hi+1;
+    if(hdjv<=0)return 0;
+    let s=0;
+    if(hHcp<=hdjv)s++;
+    if(hHcp<=(hdjv-18))s++;
+    return s;
+  });
+  return {
+    source:'global',gameId:g.gameId||g.rid,startedAt:g.startedAt||0,
+    courseName:g.courseName||'Parcours',coursePar:g.coursePar||72,
+    holesPar:g.holesPar||[],
+    scores:g.scores||[],strokes
+  };
+}
+// Calcule stats depuis liste de manches normalisées
+function computeStatsFromNormRounds(norms){
+  const byPar={3:{sum:0,n:0},4:{sum:0,n:0},5:{sum:0,n:0}};
+  norms.forEach(nr=>{
+    nr.scores.forEach((s,hi)=>{if(!s)return;const par=nr.holesPar[hi];if(par&&byPar[par]){byPar[par].sum+=s;byPar[par].n++;}});
+  });
+  const avgByPar={3:byPar[3].n?byPar[3].sum/byPar[3].n:null,4:byPar[4].n?byPar[4].sum/byPar[4].n:null,5:byPar[5].n?byPar[5].sum/byPar[5].n:null,counts:{3:byPar[3].n,4:byPar[4].n,5:byPar[5].n}};
+  const progression=norms.slice().sort((a,b)=>b.startedAt-a.startedAt).slice(0,10).map(nr=>{
+    let gr=0,net=0;
+    nr.scores.forEach((s,hi)=>{if(s>0){gr+=s;net+=s-(nr.strokes[hi]||0);}});
+    return {source:nr.source,date:nr.startedAt,course:nr.courseName,gr,net,diff:gr-nr.coursePar,netDiff:net-nr.coursePar};
+  }).filter(g=>g.gr>0).reverse();
+  return {avgByPar,progression,total:norms.length};
+}
+// Collecte les manches selon la source demandée
+function collectRoundsForPlayer(playerId,source,cb){
+  const p=pById(playerId);
+  const locals=DB.history.filter(g=>g.playerIds.includes(playerId))
+    .map(g=>normalizeRound('local',playerId,g)).filter(Boolean);
+  if(source==='local'||!p?.globalCode){cb(locals);return;}
+  // Global ou both : fetch Firebase
+  fetchGlobalPlayerData(p.globalCode).then(data=>{
+    const globals=data.rounds.map(r=>{
+      // Injecter playerIndex approximé
+      r.playerIndex=p.index;
+      return normalizeRound('global',playerId,r,p.globalCode);
+    }).filter(Boolean);
+    if(source==='global')cb(globals);
+    else{
+      // both : merger en évitant doublons par gameId
+      const seen=new Set(locals.map(l=>l.gameId).filter(Boolean));
+      const extras=globals.filter(g=>!seen.has(g.gameId));
+      cb([...locals,...extras]);
+    }
+  }).catch(e=>{console.warn('fetch global failed:',e);cb(locals);});
+}
+
 function statsHistoryForPlayer(playerId,limit){
   // Retourne les parties terminées où le joueur figure
   const list=DB.history.filter(g=>g.playerIds.includes(playerId));
@@ -7841,53 +8045,101 @@ function statsProgression(playerId,n){
     return {date:g.startedAt,course:course.name,gr,net,diff:gr-par,netDiff:net-par};
   }).filter(Boolean).reverse();
 }
+function setStatsSource(src){
+  const p=S.statsPlayerId?pById(S.statsPlayerId):null;
+  if((src==='global'||src==='both')&&(!p||!p.globalCode)){
+    alert('Ce joueur n\'a pas de code global.\n\nVa dans la fiche joueur (Accueil → Joueurs → 🆔) pour créer un code.');
+    return;
+  }
+  S.statsSource=src;render();
+}
 function statsView(){
-  const players=DB.players.filter(p=>DB.history.some(g=>g.playerIds.includes(p.id)));
-  const selId=S.statsPlayerId||(players[0]?.id);
+  // Inclure tous les joueurs (même sans partie locale, au cas où ils ont un code global)
+  const playersAll=DB.players;
+  const playersWithLocal=DB.players.filter(p=>DB.history.some(g=>g.playerIds.includes(p.id)));
+  const selId=S.statsPlayerId||(playersWithLocal[0]||playersAll[0])?.id;
   const p=selId?pById(selId):null;
+  if(!S.statsSource)S.statsSource='local';
+  const source=S.statsSource;
+  const hasGlobalCode=p&&p.globalCode;
+  // Déclenche fetch si source global ou both et pas encore en cache
+  if(p&&hasGlobalCode&&(source==='global'||source==='both')){
+    const cached=_globalCache[p.globalCode];
+    if(!cached||Date.now()-cached.fetchedAt>60000){
+      if(!S._statsLoading){
+        S._statsLoading=true;
+        fetchGlobalPlayerData(p.globalCode).finally(()=>{S._statsLoading=false;render();});
+      }
+    }
+  }
+  // Collecte synchrone des manches selon la source
+  const locals=p?DB.history.filter(g=>g.playerIds.includes(p.id)).map(g=>normalizeRound('local',p.id,g)).filter(Boolean):[];
+  let rounds=locals;
+  if(p&&hasGlobalCode){
+    const cached=_globalCache[p.globalCode];
+    const globals=cached?cached.rounds.map(r=>{r.playerIndex=p.index;return normalizeRound('global',p.id,r);}).filter(Boolean):[];
+    if(source==='global')rounds=globals;
+    else if(source==='both'){
+      const seen=new Set(locals.map(l=>l.gameId).filter(Boolean));
+      rounds=[...locals,...globals.filter(g=>!seen.has(g.gameId))];
+    }
+  }
+  const stats=computeStatsFromNormRounds(rounds);
+
   return`<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>📈 Statistiques</h1></div>
   <div class="content an">
-    ${players.length===0?`<div class="empty"><div class="ei">📊</div>Aucune partie enregistrée</div>`:`
+    ${playersAll.length===0?`<div class="empty"><div class="ei">📊</div>Aucun joueur</div>`:`
     <div class="card"><div class="ct">Joueur</div>
       <div class="f g8" style="flex-wrap:wrap">
-        ${players.map(pl=>`<button class="btn bsm mb0 ${selId===pl.id?'bp':'bo'}" onclick="S.statsPlayerId='${pl.id}';render()">${esc(pl.name)}</button>`).join('')}
+        ${playersAll.map(pl=>`<button class="btn bsm mb0 ${selId===pl.id?'bp':'bo'}" onclick="S.statsPlayerId='${pl.id}';render()">${esc(pl.name)}${pl.globalCode?' 🆔':''}</button>`).join('')}
       </div>
     </div>
-    ${p?(()=>{
-      const avg=statsAvgByPar(p.id);
-      const prog=statsProgression(p.id,10);
-      const totGames=statsHistoryForPlayer(p.id).length;
-      return`<div class="st">Joueur sélectionné</div>
-      <div class="card">
-        <div class="f fc g8"><div class="av" style="background:${gc(DB.players.indexOf(p))};color:#fff">${ini(p.name)}</div>
-          <div style="flex:1"><div class="fw7 f14">${esc(p.name)}</div><div class="f11 tm">Index ${p.index} · ${totGames} partie${totGames>1?'s':''}</div></div>
+    ${p?`
+    <div class="card" style="padding:10px">
+      <div class="f11 tm" style="margin-bottom:6px">Source des données</div>
+      <div class="f g8">
+        <button class="btn bsm mb0 ${source==='local'?'bp':'bo'}" style="flex:1" onclick="S.statsSource='local';render()">📱 Local</button>
+        <button class="btn bsm mb0 ${source==='global'?'bp':'bo'}" style="flex:1;${!hasGlobalCode?'opacity:.4':''}" onclick="setStatsSource('global')">☁️ Global</button>
+        <button class="btn bsm mb0 ${source==='both'?'bp':'bo'}" style="flex:1;${!hasGlobalCode?'opacity:.4':''}" onclick="setStatsSource('both')">🔀 Les deux</button>
+      </div>
+      ${!hasGlobalCode?`<div class="f11 tm mt8">💡 Pour voir les stats globales, crée un code joueur dans la fiche de ${esc(p.name)}.</div>`:''}
+      ${hasGlobalCode&&source!=='local'&&S._statsLoading?`<div class="f11 tm mt8">⏳ Chargement des stats globales…</div>`:''}
+    </div>
+
+    <div class="st">${p.name}${source==='local'?' · Local':source==='global'?' · Global':' · Local + Global'}</div>
+    <div class="card">
+      <div class="f fc g8"><div class="av" style="background:${gc(DB.players.indexOf(p))};color:#fff">${ini(p.name)}</div>
+        <div style="flex:1"><div class="fw7 f14">${esc(p.name)} ${hasGlobalCode?'<span class="badge bg" style="background:#0891b2;color:#fff;font-size:10px">🆔</span>':''}</div><div class="f11 tm">Index ${p.index} · ${stats.total} partie${stats.total>1?'s':''}</div></div>
+      </div>
+    </div>
+
+    <div class="st">Moyenne par type de trou</div>
+    <div class="card">
+      ${[3,4,5].map(par=>{const v=stats.avgByPar[par];const cnt=stats.avgByPar.counts[par];return`<div class="sr">
+        <span class="fw7">Par ${par}</span>
+        <div style="text-align:right">
+          ${v?`<div class="fw7 f14">${v.toFixed(2)} coups</div><div class="f11 tm">${cnt} trous · moyenne ${(v-par).toFixed(2)>0?'+':''}${(v-par).toFixed(2)} / par</div>`:`<div class="f12 tm">Pas encore</div>`}
         </div>
-      </div>
-      <div class="st">Moyenne par type de trou</div>
-      <div class="card">
-        ${[3,4,5].map(par=>{const v=avg[par];const cnt=avg.counts[par];return`<div class="sr">
-          <span class="fw7">Par ${par}</span>
-          <div style="text-align:right">
-            ${v?`<div class="fw7 f14">${v.toFixed(2)} coups</div><div class="f11 tm">${cnt} trous · moyenne ${(v-par).toFixed(2)>0?'+':''}${(v-par).toFixed(2)} / par</div>`:`<div class="f12 tm">Pas encore</div>`}
-          </div>
-        </div>`}).join('')}
-      </div>
-      ${prog.length>0?`<div class="st">Progression (${prog.length} dernières parties)</div>
-      <div class="card">
-        ${prog.map((g,i)=>{const dt=new Date(g.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});return`<div class="sr">
-          <div style="flex:1"><div class="fw7 f13">${esc(g.course)}</div><div class="f11 tm">${dt}</div></div>
-          <div style="text-align:right"><div class="fw7 f13">Net ${g.net}</div><div class="f11 tm">Brut ${g.gr} (${g.diff>0?'+':''}${g.diff})</div></div>
-        </div>`}).join('')}
-      </div>`:''}
-      <button class="btn bp mt8" onclick="go('h2h')">👥 Comparatif joueur vs joueur</button>
-      `;})():''}
+      </div>`}).join('')}
+    </div>
+
+    ${stats.progression.length>0?`<div class="st">Progression (${stats.progression.length} dernières parties)</div>
+    <div class="card">
+      ${stats.progression.map((g)=>{const dt=new Date(g.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});return`<div class="sr">
+        <div style="flex:1"><div class="fw7 f13">${esc(g.course)} ${g.source==='global'?'<span class="badge bg" style="background:#0891b2;color:#fff;font-size:9px">☁️</span>':''}</div><div class="f11 tm">${dt}</div></div>
+        <div style="text-align:right"><div class="fw7 f13">Net ${g.net}</div><div class="f11 tm">Brut ${g.gr} (${g.diff>0?'+':''}${g.diff})</div></div>
+      </div>`}).join('')}
+    </div>`:''}
+
+    <button class="btn bp mt8" onclick="go('h2h')">👥 Comparatif joueur vs joueur</button>
+    `:''}
     `}
   </div>`;
 }
 
 // ══ HEAD-TO-HEAD ══════════════════════════════════════════════════════════
 function h2hCompare(p1Id,p2Id){
-  // Parties où les 2 ont joué la même partie
+  // Parties où les 2 ont joué la même partie (local uniquement)
   const games=DB.history.filter(g=>g.playerIds.includes(p1Id)&&g.playerIds.includes(p2Id));
   let p1Wins=0,p2Wins=0,ties=0,p1TotalNet=0,p2TotalNet=0,p1TotalBrut=0,p2TotalBrut=0,nGames=0;
   games.forEach(g=>{
@@ -7905,49 +8157,137 @@ function h2hCompare(p1Id,p2Id){
   });
   return{nGames,p1Wins,p2Wins,ties,p1AvgBrut:nGames?p1TotalBrut/nGames:0,p2AvgBrut:nGames?p2TotalBrut/nGames:0,p1AvgNet:nGames?p1TotalNet/nGames:0,p2AvgNet:nGames?p2TotalNet/nGames:0};
 }
+// Moyennes individuelles cross-device (via code global)
+function h2hCompareGlobal(code1,code2){
+  // On compare les moyennes totales de chaque joueur, pas les face-à-face
+  // car il est peu probable d'avoir les mêmes gameId dans les 2
+  const c1=_globalCache[code1],c2=_globalCache[code2];
+  if(!c1||!c2)return null;
+  function statsFor(cache){
+    let totGr=0,totNet=0,n=0,bestGr=Infinity,bestNet=Infinity;
+    (cache.rounds||[]).forEach(r=>{
+      let gr=0,net=0;
+      (r.scores||[]).forEach((s,hi)=>{
+        if(s>0){
+          gr+=s;
+          const hHcp=r.holesHcp?r.holesHcp[hi]:hi+1;
+          const idx=cache.info?.index||18;
+          const strokes=hHcp<=idx?1:0;
+          net+=s-strokes;
+        }
+      });
+      if(gr>0){n++;totGr+=gr;totNet+=net;if(gr<bestGr)bestGr=gr;if(net<bestNet)bestNet=net;}
+    });
+    return {nGames:n,avgGr:n?totGr/n:0,avgNet:n?totNet/n:0,bestGr:bestGr===Infinity?null:bestGr,bestNet:bestNet===Infinity?null:bestNet};
+  }
+  return{s1:statsFor(c1),s2:statsFor(c2),mode:'global'};
+}
 function h2hView(){
+  if(!S.h2hMode)S.h2hMode='local';
+  const mode=S.h2hMode;
   const players=DB.players.filter(p=>DB.history.some(g=>g.playerIds.includes(p.id)));
-  const p1=S.h2hP1||players[0]?.id;
-  const p2=S.h2hP2||players[1]?.id;
-  const r=p1&&p2&&p1!==p2?h2hCompare(p1,p2):null;
+  const playersWithCode=DB.players.filter(p=>p.globalCode);
+
+  // Déclenche chargement des données globales si mode global
+  if(mode==='global'){
+    [S.h2hP1,S.h2hP2].forEach(pid=>{
+      if(!pid)return;
+      const p=pById(pid);if(!p?.globalCode)return;
+      const cached=_globalCache[p.globalCode];
+      if(!cached||Date.now()-cached.fetchedAt>60000){
+        if(!S._h2hLoading){
+          S._h2hLoading=true;
+          fetchGlobalPlayerData(p.globalCode).finally(()=>{S._h2hLoading=false;render();});
+        }
+      }
+    });
+  }
+
+  const p1=S.h2hP1||(mode==='global'?playersWithCode[0]?.id:players[0]?.id);
+  const p2=S.h2hP2||(mode==='global'?playersWithCode[1]?.id:players[1]?.id);
   const pl1=p1?pById(p1):null;const pl2=p2?pById(p2):null;
+  const availPlayers=mode==='global'?playersWithCode:players;
+
+  let localResult=null,globalResult=null;
+  if(p1&&p2&&p1!==p2){
+    if(mode==='local')localResult=h2hCompare(p1,p2);
+    else if(mode==='global'&&pl1?.globalCode&&pl2?.globalCode){
+      globalResult=h2hCompareGlobal(pl1.globalCode,pl2.globalCode);
+    }
+  }
+
   return`<div class="hdr"><button class="back" onclick="go('stats')">‹</button><h1>👥 Comparatif</h1></div>
   <div class="content an">
-    ${players.length<2?`<div class="empty"><div class="ei">👤</div>Il faut au moins 2 joueurs avec des parties pour comparer</div>`:`
+
+    <div class="card" style="padding:10px">
+      <div class="f11 tm" style="margin-bottom:6px">Mode de comparaison</div>
+      <div class="f g8">
+        <button class="btn bsm mb0 ${mode==='local'?'bp':'bo'}" style="flex:1" onclick="S.h2hMode='local';render()">📱 Local (parties communes)</button>
+        <button class="btn bsm mb0 ${mode==='global'?'bp':'bo'}" style="flex:1" onclick="S.h2hMode='global';render()">☁️ Global (cross-device)</button>
+      </div>
+      <div class="f11 tm mt8">
+        ${mode==='local'?'💡 Compare sur les parties où vous avez joué ensemble (face-à-face direct).':'💡 Compare les moyennes de chaque joueur sur toutes leurs parties (via code global).'}
+      </div>
+    </div>
+
+    ${availPlayers.length<2?`<div class="empty"><div class="ei">👤</div>${mode==='global'?'Il faut au moins 2 joueurs avec un code global pour comparer cross-device.':'Il faut au moins 2 joueurs avec des parties.'}</div>`:`
     <div class="card"><div class="ct">Joueur 1</div>
       <div class="f g8" style="flex-wrap:wrap">
-        ${players.map(pl=>`<button class="btn bsm mb0 ${p1===pl.id?'bp':'bo'}" onclick="S.h2hP1='${pl.id}';render()">${esc(pl.name)}</button>`).join('')}
+        ${availPlayers.map(pl=>`<button class="btn bsm mb0 ${p1===pl.id?'bp':'bo'}" onclick="S.h2hP1='${pl.id}';render()">${esc(pl.name)}${pl.globalCode?' 🆔':''}</button>`).join('')}
       </div>
     </div>
     <div class="card"><div class="ct">Joueur 2</div>
       <div class="f g8" style="flex-wrap:wrap">
-        ${players.map(pl=>`<button class="btn bsm mb0 ${p2===pl.id?'bg2':'bo'}" onclick="S.h2hP2='${pl.id}';render()">${esc(pl.name)}</button>`).join('')}
+        ${availPlayers.map(pl=>`<button class="btn bsm mb0 ${p2===pl.id?'bg2':'bo'}" onclick="S.h2hP2='${pl.id}';render()">${esc(pl.name)}${pl.globalCode?' 🆔':''}</button>`).join('')}
       </div>
     </div>
-    ${p1===p2?`<div class="card"><p class="f12 tm tc">Sélectionne 2 joueurs différents</p></div>`:r?`
+    ${p1===p2?`<div class="card"><p class="f12 tm tc">Sélectionne 2 joueurs différents</p></div>`:
+    localResult?`
     <div class="card" style="border:2px solid var(--g)">
-      <div class="ct tc">Face-à-face · ${r.nGames} partie${r.nGames>1?'s':''} en commun</div>
-      ${r.nGames===0?`<p class="f12 tm tc">Jamais joué ensemble</p>`:`
+      <div class="ct tc">Face-à-face · ${localResult.nGames} partie${localResult.nGames>1?'s':''} en commun</div>
+      ${localResult.nGames===0?`<p class="f12 tm tc">Jamais joué ensemble dans l'historique local</p>`:`
       <div class="f g8 mb0">
-        <div style="flex:1;text-align:center;padding:12px;background:${r.p1Wins>r.p2Wins?'#f0fdf4':'#f9fafb'};border-radius:10px">
+        <div style="flex:1;text-align:center;padding:12px;background:${localResult.p1Wins>localResult.p2Wins?'#f0fdf4':'#f9fafb'};border-radius:10px">
           <div class="fw8 f14">${esc(pl1.name)}</div>
-          <div class="fw8" style="font-size:32px;color:var(--g)">${r.p1Wins}</div>
-          <div class="f11 tm">victoire${r.p1Wins>1?'s':''}</div>
-          <div class="f11 tm mt8">Moy. brut : ${r.p1AvgBrut.toFixed(1)}</div>
-          <div class="f11 tm">Moy. net : ${r.p1AvgNet.toFixed(1)}</div>
+          <div class="fw8" style="font-size:32px;color:var(--g)">${localResult.p1Wins}</div>
+          <div class="f11 tm">victoire${localResult.p1Wins>1?'s':''}</div>
+          <div class="f11 tm mt8">Moy. brut : ${localResult.p1AvgBrut.toFixed(1)}</div>
+          <div class="f11 tm">Moy. net : ${localResult.p1AvgNet.toFixed(1)}</div>
         </div>
-        <div style="flex:1;text-align:center;padding:12px;background:${r.p2Wins>r.p1Wins?'#f0fdf4':'#f9fafb'};border-radius:10px">
+        <div style="flex:1;text-align:center;padding:12px;background:${localResult.p2Wins>localResult.p1Wins?'#f0fdf4':'#f9fafb'};border-radius:10px">
           <div class="fw8 f14">${esc(pl2.name)}</div>
-          <div class="fw8" style="font-size:32px;color:var(--g)">${r.p2Wins}</div>
-          <div class="f11 tm">victoire${r.p2Wins>1?'s':''}</div>
-          <div class="f11 tm mt8">Moy. brut : ${r.p2AvgBrut.toFixed(1)}</div>
-          <div class="f11 tm">Moy. net : ${r.p2AvgNet.toFixed(1)}</div>
+          <div class="fw8" style="font-size:32px;color:var(--g)">${localResult.p2Wins}</div>
+          <div class="f11 tm">victoire${localResult.p2Wins>1?'s':''}</div>
+          <div class="f11 tm mt8">Moy. brut : ${localResult.p2AvgBrut.toFixed(1)}</div>
+          <div class="f11 tm">Moy. net : ${localResult.p2AvgNet.toFixed(1)}</div>
         </div>
       </div>
-      ${r.ties>0?`<div class="f12 tc tm mt8">${r.ties} égalité${r.ties>1?'s':''}</div>`:''}
-      <div class="f12 tc tm mt8">Écart moyen net : <b>${(r.p1AvgNet-r.p2AvgNet).toFixed(1)}</b> coups</div>
+      ${localResult.ties>0?`<div class="f12 tc tm mt8">${localResult.ties} égalité${localResult.ties>1?'s':''}</div>`:''}
+      <div class="f12 tc tm mt8">Écart moyen net : <b>${(localResult.p1AvgNet-localResult.p2AvgNet).toFixed(1)}</b> coups</div>
       `}
-    </div>`:''}
+    </div>`:globalResult?`
+    <div class="card" style="border:2px solid #0891b2">
+      <div class="ct tc">Comparaison Global · ${globalResult.s1.nGames}+${globalResult.s2.nGames} parties cumulées</div>
+      <div class="f g8 mb0">
+        <div style="flex:1;text-align:center;padding:12px;background:${globalResult.s1.avgNet&&globalResult.s2.avgNet&&globalResult.s1.avgNet<globalResult.s2.avgNet?'#f0fdf4':'#f9fafb'};border-radius:10px">
+          <div class="fw8 f14">${esc(pl1.name)}</div>
+          <div class="f11 tm">${globalResult.s1.nGames} partie${globalResult.s1.nGames>1?'s':''}</div>
+          <div class="fw8 mt8" style="font-size:22px;color:var(--g)">${globalResult.s1.avgNet.toFixed(1)}</div>
+          <div class="f11 tm">moyenne nette</div>
+          <div class="f11 tm mt8">Brut moy. : ${globalResult.s1.avgGr.toFixed(1)}</div>
+          <div class="f11 tm">Best net : ${globalResult.s1.bestNet||'–'}</div>
+        </div>
+        <div style="flex:1;text-align:center;padding:12px;background:${globalResult.s1.avgNet&&globalResult.s2.avgNet&&globalResult.s2.avgNet<globalResult.s1.avgNet?'#f0fdf4':'#f9fafb'};border-radius:10px">
+          <div class="fw8 f14">${esc(pl2.name)}</div>
+          <div class="f11 tm">${globalResult.s2.nGames} partie${globalResult.s2.nGames>1?'s':''}</div>
+          <div class="fw8 mt8" style="font-size:22px;color:var(--g)">${globalResult.s2.avgNet.toFixed(1)}</div>
+          <div class="f11 tm">moyenne nette</div>
+          <div class="f11 tm mt8">Brut moy. : ${globalResult.s2.avgGr.toFixed(1)}</div>
+          <div class="f11 tm">Best net : ${globalResult.s2.bestNet||'–'}</div>
+        </div>
+      </div>
+      ${globalResult.s1.nGames&&globalResult.s2.nGames?`<div class="f12 tc tm mt8">Écart moyen net : <b>${(globalResult.s1.avgNet-globalResult.s2.avgNet).toFixed(1)}</b> coups</div>`:''}
+    </div>`:mode==='global'&&S._h2hLoading?`<div class="card"><p class="f12 tm tc">⏳ Chargement des stats globales…</p></div>`:''}
     `}
   </div>`;
 }
