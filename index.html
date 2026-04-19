@@ -824,7 +824,7 @@ function defHoles(){
 let S={view:DB.game?'playing':'home',setup:{},ec:null,tab:0,rulesGame:null};window.S=S;
 
 // ══ RENDER ════════════════════════════════════════════════════════════════
-const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView};
+const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView,clubs:clubsView,clubsEdit:clubsEditView,clubsCalc:clubsCalcView,clubsAdvisor:clubsAdvisorView};
 const APP_FOOTER='<div style="text-align:center;padding:18px 0 10px;color:#94a3b8;font-size:12px" ondblclick="activateSuperAdmin()">⛳ Ça Swingue Manager <b>v14</b> · © 2026 Virnaoned</div>';
 function render(){
   const f=VIEWS[S.view];
@@ -4182,6 +4182,11 @@ function home(){
         <div class="lrow-body"><div class="lrow-title">Entraînement</div><div class="lrow-sub">Practice, putting, swing</div></div>
         <div class="lrow-arr">›</div>
       </button>
+      <button class="lrow" onclick="go('clubs')">
+        <div class="lrow-icon" style="background:#e0f2fe">📏</div>
+        <div class="lrow-body"><div class="lrow-title">Mes distances par club</div><div class="lrow-sub">Plein / ¾ / ½ · Ajustement météo</div></div>
+        <div class="lrow-arr">›</div>
+      </button>
     </div>
     <div class="st">💾 Mes données</div>
     <div class="card">
@@ -4698,6 +4703,619 @@ function savePl(){
 }
 function delPl(id){conf('Supprimer ce joueur ?','',()=>{DB.players=DB.players.filter(p=>p.id!==id);save();render()})}
 function favP(id){const p=pById(id);if(p){p.fav=!p.fav;save();render()}}
+
+// ══ 🎯 DISTANCES PAR CLUB + CALCULATEUR MÉTÉO ═════════════════════════════
+const DEFAULT_CLUBS=[
+  {id:'drv',name:'Driver',icon:'🏌️',full:null,threeQ:null,half:null},
+  {id:'b3',name:'Bois 3',icon:'🪵',full:null,threeQ:null,half:null},
+  {id:'b5',name:'Bois 5',icon:'🪵',full:null,threeQ:null,half:null},
+  {id:'h3',name:'Hybride 3',icon:'↪️',full:null,threeQ:null,half:null},
+  {id:'h4',name:'Hybride 4',icon:'↪️',full:null,threeQ:null,half:null},
+  {id:'h5',name:'Hybride 5',icon:'↪️',full:null,threeQ:null,half:null},
+  {id:'f4',name:'Fer 4',icon:'🔩',full:null,threeQ:null,half:null},
+  {id:'f5',name:'Fer 5',icon:'🔩',full:null,threeQ:null,half:null},
+  {id:'f6',name:'Fer 6',icon:'🔩',full:null,threeQ:null,half:null},
+  {id:'f7',name:'Fer 7',icon:'🔩',full:null,threeQ:null,half:null},
+  {id:'f8',name:'Fer 8',icon:'🔩',full:null,threeQ:null,half:null},
+  {id:'f9',name:'Fer 9',icon:'🔩',full:null,threeQ:null,half:null},
+  {id:'pw',name:'PW (Pitching Wedge)',icon:'⚡',full:null,threeQ:null,half:null},
+  {id:'gw',name:'GW (Gap Wedge, 50-52°)',icon:'⚡',full:null,threeQ:null,half:null},
+  {id:'sw',name:'SW (Sand Wedge, 54-56°)',icon:'⚡',full:null,threeQ:null,half:null},
+  {id:'lw',name:'LW (Lob Wedge, 58-60°)',icon:'⚡',full:null,threeQ:null,half:null}
+];
+
+function getPlayerClubs(p){
+  if(!p.clubs||!Array.isArray(p.clubs)||p.clubs.length===0){
+    p.clubs=DEFAULT_CLUBS.map(c=>({...c}));
+  }
+  // Ajouter les clubs manquants si on a ajouté de nouveaux dans DEFAULT_CLUBS
+  DEFAULT_CLUBS.forEach(def=>{
+    if(!p.clubs.find(c=>c.id===def.id))p.clubs.push({...def});
+  });
+  return p.clubs;
+}
+
+// Facteur température : référence 20°C
+function tempFactor(tempC){
+  if(tempC<10)return 0.95;       // hiver froid : -5%
+  if(tempC<15)return 0.97;       // frais : -3%
+  if(tempC<=25)return 1.00;      // idéal : 0%
+  if(tempC<=30)return 1.02;      // chaud : +2%
+  return 1.04;                   // canicule : +4%
+}
+// Facteur vent : kmh peut être positif (portant) ou négatif (face)
+function windFactor(kmh,direction){
+  if(!direction||direction==='nul'||kmh===0)return 1.00;
+  if(direction==='travers')return 1.00;
+  var abs=Math.abs(kmh);
+  if(direction==='face'){
+    if(abs<=10)return 0.96;
+    if(abs<=25)return 0.90;
+    if(abs<=40)return 0.80;
+    return 0.72;
+  }
+  if(abs<=10)return 1.02;
+  if(abs<=25)return 1.05;
+  if(abs<=40)return 1.10;
+  return 1.12;
+}
+// Facteur humidité (impacte le roll & compression balle)
+function humidityFactor(h){
+  if(h<30)return 1.01;           // très sec : +1%
+  if(h<=70)return 1.00;          // normal : 0%
+  if(h<=85)return 0.99;          // humide : -1%
+  return 0.98;                   // détrempé : -2%
+}
+// Facteur lie (type de position de balle)
+function lieFactor(lie){
+  switch(lie){
+    case 'tee':          return 1.00;  // départ
+    case 'fairway':      return 1.00;  // fairway (référence)
+    case 'roughLeger':   return 0.95;  // rough léger : -5%
+    case 'roughEpais':   return 0.85;  // rough épais : -15%
+    case 'roughDense':   return 0.75;  // rough très dense : -25%
+    case 'bunkerFW':     return 0.90;  // bunker de fairway : -10%
+    case 'divot':        return 0.92;  // divot / terre sèche : -8%
+    case 'flier':        return 1.08;  // flier lie (herbe entre balle/club) : +8% mais moins de contrôle
+    case 'boue':         return 0.80;  // zone boueuse/détrempée : -20%
+    default:             return 1.00;
+  }
+}
+// Facteur pente (balle vs pieds en montée ou descente)
+function slopeFactor(slopeDeg){
+  // Positif = montée (uphill), Négatif = descente (downhill)
+  if(slopeDeg>=15)return 0.88;   // grosse montée : -12%
+  if(slopeDeg>=10)return 0.92;   // montée : -8%
+  if(slopeDeg>=5)return 0.96;    // légère montée : -4%
+  if(slopeDeg>=-5)return 1.00;   // plat : 0%
+  if(slopeDeg>=-10)return 1.04;  // légère descente : +4%
+  if(slopeDeg>=-15)return 1.08;  // descente : +8%
+  return 1.12;                   // grosse descente : +12%
+}
+function formatDistance(base,factor){
+  if(base==null||base==='')return '–';
+  var d=Math.round(base*factor);
+  return d+' m';
+}
+function computeAdjusted(dist,tempC,wind,dir,humidity){
+  if(dist==null||dist==='')return null;
+  return Math.round(dist*tempFactor(tempC)*windFactor(wind,dir)*humidityFactor(humidity??50));
+}
+
+function clubsView(){
+  var players=DB.players;
+  if(!S.clubsPlayerId&&players.length)S.clubsPlayerId=players[0].id;
+  var p=players.find(pl=>pl.id===S.clubsPlayerId);
+  return`<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>🎯 Mes distances par club</h1></div>
+  <div class="content an">
+    ${players.length===0?`<div class="empty"><div class="ei">👤</div>Ajoute d'abord au moins un joueur<br><button class="btn bp mt8" onclick="go('players')">Gérer les joueurs</button></div>`:`
+    <div class="card"><div class="ct">Joueur</div>
+      <div class="f g8" style="flex-wrap:wrap">
+        ${players.map(pl=>`<button class="btn bsm mb0 ${S.clubsPlayerId===pl.id?'bp':'bo'}" onclick="S.clubsPlayerId='${pl.id}';render()">${esc(pl.name)}</button>`).join('')}
+      </div>
+    </div>
+    ${p?`
+    <button class="btn mb0 mt8" style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;font-size:16px;padding:16px" onclick="go('clubsAdvisor')">🎯 Quel club jouer ?</button>
+    <div class="rb mt8">
+      <button class="btn bp mb0" style="flex:1" onclick="go('clubsEdit')">✏️ Éditer mes distances</button>
+      <button class="btn mb0" style="flex:1;background:linear-gradient(135deg,#0891b2,#06b6d4);color:#fff;border:none" onclick="go('clubsCalc')">🌡️ Calculateur météo</button>
+    </div>
+    ${renderClubsTable(p,false)}
+    `:''}`}
+  </div>`;
+}
+
+function renderClubsTable(p,showAdjusted){
+  var clubs=getPlayerClubs(p);
+  var temp=S.calcTemp??20;
+  var wind=S.calcWind??0;
+  var dir=S.calcDir||'nul';
+  var hum=S.calcHum??50;
+  var lie=S.calcLie||'fairway';
+  var slope=S.calcSlope??0;
+  var factor=tempFactor(temp)*windFactor(wind,dir)*humidityFactor(hum)*lieFactor(lie)*slopeFactor(slope);
+  var hasAny=clubs.some(c=>c.full||c.threeQ||c.half);
+  if(!hasAny){
+    return`<div class="card"><div class="empty" style="padding:20px">
+      <div class="ei">📏</div>
+      <p class="f13">Aucune distance saisie</p>
+      <button class="btn bp mt8" onclick="go('clubsEdit')">Commencer à saisir</button>
+    </div></div>`;
+  }
+  return`<div class="card" style="overflow-x:auto;padding:10px">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:var(--gdk);color:#fff">
+          <th style="padding:8px;text-align:left">Club</th>
+          <th style="padding:8px">Plein</th>
+          <th style="padding:8px">¾</th>
+          <th style="padding:8px">½</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${clubs.filter(c=>c.full||c.threeQ||c.half).map(c=>{
+          var f=c.full,t=c.threeQ,h=c.half;
+          if(showAdjusted){
+            return`<tr style="border-bottom:1px solid #f1f5f9">
+              <td style="padding:8px;font-weight:700">${c.icon} ${esc(c.name)}</td>
+              <td style="padding:8px;text-align:center"><div class="fw7" style="color:var(--g)">${formatDistance(f,factor)}</div>${f?`<div class="f11 tm">ref ${f}m</div>`:''}</td>
+              <td style="padding:8px;text-align:center"><div class="fw7" style="color:var(--g)">${formatDistance(t,factor)}</div>${t?`<div class="f11 tm">ref ${t}m</div>`:''}</td>
+              <td style="padding:8px;text-align:center"><div class="fw7" style="color:var(--g)">${formatDistance(h,factor)}</div>${h?`<div class="f11 tm">ref ${h}m</div>`:''}</td>
+            </tr>`;
+          }
+          return`<tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px;font-weight:700">${c.icon} ${esc(c.name)}</td>
+            <td style="padding:8px;text-align:center;font-weight:700">${f?f+' m':'–'}</td>
+            <td style="padding:8px;text-align:center">${t?t+' m':'–'}</td>
+            <td style="padding:8px;text-align:center">${h?h+' m':'–'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function clubsEditView(){
+  var p=DB.players.find(pl=>pl.id===S.clubsPlayerId);
+  if(!p)return clubsView();
+  var clubs=getPlayerClubs(p);
+  if(S.clubsEditMode==null)S.clubsEditMode=false;
+  var unlocked=S.clubsEditMode;
+  return`<div class="hdr"><button class="back" onclick="S.clubsEditMode=false;go('clubs')">‹</button><h1>${unlocked?'🔓':'🔒'} ${esc(p.name)}</h1></div>
+  <div class="content an">
+    <div class="card" style="background:${unlocked?'linear-gradient(135deg,#d97706,#f59e0b)':'linear-gradient(135deg,#0891b2,#06b6d4)'};color:#fff;padding:14px">
+      <div class="f fc g8">
+        <div style="font-size:28px">${unlocked?'🔓':'🔒'}</div>
+        <div style="flex:1">
+          <div class="fw8 f14">${unlocked?'Mode édition actif':'Mode verrouillé'}</div>
+          <div class="f12" style="opacity:.9">${unlocked?'Attention : les modifications sont sauvegardées automatiquement':'Clique sur le cadenas pour modifier les distances'}</div>
+        </div>
+        <button class="btn bsm mb0" style="background:rgba(255,255,255,.25);color:#fff;border:1px solid rgba(255,255,255,.4);padding:10px 14px" onclick="S.clubsEditMode=${!unlocked};render()">${unlocked?'🔒 Verrouiller':'🔓 Déverrouiller'}</button>
+      </div>
+    </div>
+
+    <div class="f11 tm" style="margin-bottom:10px;padding:10px;background:#f8fafc;border-radius:10px">
+      Saisis tes distances en <b>mètres</b> à conditions idéales (~20°C, pas de vent).<br>
+      💡 Laisse vide les clubs que tu ne possèdes pas ou que tu ne joues pas à 3/4 ou 1/2.
+    </div>
+
+    ${clubs.map((c,i)=>`
+    <div class="card" style="padding:12px;${!unlocked?'opacity:.85':''}">
+      <div class="f fc g8 mb0" style="margin-bottom:10px">
+        <div style="font-size:22px">${c.icon}</div>
+        <div class="fw7 f14">${esc(c.name)}</div>
+      </div>
+      <div class="f g8">
+        <div class="fg mb0" style="flex:1"><label class="lbl">Plein coup (m)</label>
+          <input type="number" class="inp" min="0" max="400" value="${c.full??''}" ${unlocked?'':'readonly'} style="${!unlocked?'background:#f1f5f9;cursor:not-allowed':''}" onchange="if(${unlocked}){DB.players.find(pl=>pl.id==='${p.id}').clubs[${i}].full=parseInt(this.value)||null;save()}" placeholder="–">
+        </div>
+        <div class="fg mb0" style="flex:1"><label class="lbl">¾ de coup (m)</label>
+          <input type="number" class="inp" min="0" max="400" value="${c.threeQ??''}" ${unlocked?'':'readonly'} style="${!unlocked?'background:#f1f5f9;cursor:not-allowed':''}" onchange="if(${unlocked}){DB.players.find(pl=>pl.id==='${p.id}').clubs[${i}].threeQ=parseInt(this.value)||null;save()}" placeholder="–">
+        </div>
+        <div class="fg mb0" style="flex:1"><label class="lbl">½ coup (m)</label>
+          <input type="number" class="inp" min="0" max="400" value="${c.half??''}" ${unlocked?'':'readonly'} style="${!unlocked?'background:#f1f5f9;cursor:not-allowed':''}" onchange="if(${unlocked}){DB.players.find(pl=>pl.id==='${p.id}').clubs[${i}].half=parseInt(this.value)||null;save()}" placeholder="–">
+        </div>
+      </div>
+    </div>`).join('')}
+    ${unlocked?`<button class="btn bd mt8" onclick="resetClubs('${p.id}')">🔄 Tout réinitialiser à vide</button>`:''}
+    <button class="btn bp mt8" onclick="S.clubsEditMode=false;go('clubs')">✅ Terminer</button>
+  </div>`;
+}
+function resetClubs(pid){
+  conf('Réinitialiser toutes les distances ?','',()=>{
+    var p=DB.players.find(pl=>pl.id===pid);
+    if(p){p.clubs=DEFAULT_CLUBS.map(c=>({...c}));save();render();}
+  });
+}
+
+// Accès rapide advisor depuis la partie (auto-sélection joueur + retour)
+function openAdvisorFromGame(){
+  if(DB.game&&DB.game.playerIds&&DB.game.playerIds.length){
+    S.clubsPlayerId=DB.game.playerIds[0];
+  }
+  S.advisorReturnTo='playing';
+  go('clubsAdvisor');
+}
+
+// ══ CLUB ADVISOR : recommande le bon club pour un coup ═══════════════════
+// Trouve le meilleur club pour un type de coup donné (plein/¾/½) et une distance ref requise
+function bestClubForShot(clubs,shotKey,distNeeded){
+  var best=null;var bestAbs=Infinity;
+  clubs.forEach(c=>{
+    if(c[shotKey]==null)return;
+    var d=Math.abs(c[shotKey]-distNeeded);
+    if(d<bestAbs){bestAbs=d;best=c;}
+  });
+  return best;
+}
+
+// Calcul de la probabilité de réussite (% chance de tomber dans la cible)
+function shotConfidence(shotKey,diffMeters){
+  // Base selon la difficulté du coup
+  var base={full:90,threeQ:80,half:70}[shotKey]||75;
+  // Pénalité selon écart (en mètres effectifs)
+  var abs=Math.abs(diffMeters);
+  var penalty=0;
+  if(abs<=1)penalty=0;
+  else if(abs<=3)penalty=8;
+  else if(abs<=6)penalty=18;
+  else if(abs<=10)penalty=30;
+  else if(abs<=15)penalty=45;
+  else penalty=60;
+  var conf=base-penalty;
+  return Math.max(20,Math.min(95,Math.round(conf)));
+}
+
+function clubsAdvisorView(){
+  var p=DB.players.find(pl=>pl.id===S.clubsPlayerId);
+  if(!p)return clubsView();
+  // Conditions du jour (persistées dans DB)
+  if(!DB.roundConditions)DB.roundConditions={temp:20,humidity:50};
+  // Paramètres du coup en cours
+  if(S.advDist==null)S.advDist=140;
+  if(S.advDistFront==null)S.advDistFront=136;
+  if(S.advDistBack==null)S.advDistBack=144;
+  if(!S.advLie)S.advLie='fairway';
+  if(S.advWind==null)S.advWind=0;
+  if(!S.advWindDir)S.advWindDir='nul';
+  if(S.advSlope==null)S.advSlope=0;
+  if(S.advShow3Targets==null)S.advShow3Targets=false;
+  if(S.advShowConfidence==null)S.advShowConfidence=true;
+
+  var temp=DB.roundConditions.temp;
+  var hum=DB.roundConditions.humidity;
+  var lie=S.advLie;
+  var wind=S.advWind;
+  var wDir=S.advWindDir;
+  var slope=S.advSlope;
+
+  // Facteurs conditions
+  var tf=tempFactor(temp);
+  var hf=humidityFactor(hum);
+  var lf=lieFactor(lie);
+  var wf=windFactor(wind,wDir);
+  var sf=slopeFactor(slope);
+  var totalFactor=tf*hf*lf*wf*sf;
+
+  var lieLabels={tee:'🟩 Tee',fairway:'🟢 Fairway',roughLeger:'🌱 Rough léger',roughEpais:'🌾 Rough épais',roughDense:'🌿 Rough dense',bunkerFW:'🏖️ Bunker fairway',divot:'🕳️ Divot',flier:'✈️ Flier',boue:'💩 Boue'};
+  var pctTotal=Math.round((totalFactor-1)*100);
+
+  var clubs=getPlayerClubs(p);
+  var noData=clubs.every(c=>c.full==null&&c.threeQ==null&&c.half==null);
+
+  // Définir les cibles
+  var targets;
+  if(S.advShow3Targets){
+    targets=[
+      {label:'Avant du green',emoji:'⏩',dist:S.advDistFront,color:'#06b6d4'},
+      {label:'Centre / drapeau',emoji:'🎯',dist:S.advDist,color:'#16a34a'},
+      {label:'Arrière du green',emoji:'⏪',dist:S.advDistBack,color:'#d97706'}
+    ];
+  }else{
+    targets=[{label:'Cible',emoji:'🎯',dist:S.advDist,color:'#16a34a'}];
+  }
+
+  var backTarget=S.advisorReturnTo||'clubs';
+  var inGame=backTarget==='playing'&&DB.game;
+  var playerOptions=inGame?DB.game.playerIds.map(id=>pById(id)).filter(Boolean):DB.players;
+
+  // Helper pour générer les 3 recommandations d'une cible
+  function renderTargetRecs(target){
+    var distNeeded=target.dist/totalFactor;
+    var shots=[
+      {key:'full',label:'Plein coup',icon:'💪',color:'#16a34a'},
+      {key:'threeQ',label:'¾ de coup',icon:'✋',color:'#0891b2'},
+      {key:'half',label:'½ coup',icon:'🤏',color:'#7c3aed'}
+    ];
+    return`<div class="st">${target.emoji} ${esc(target.label)} · ${target.dist}m</div>
+    <div class="card" style="padding:10px">
+      ${shots.map(s=>{
+        var best=bestClubForShot(clubs,s.key,distNeeded);
+        if(!best)return`<div class="sr" style="padding:10px 0;border-bottom:1px solid #f0f0f0;opacity:.5">
+          <div class="f fc g8" style="flex:1">
+            <div style="font-size:22px">${s.icon}</div>
+            <div class="fw7 f13">${s.label}</div>
+          </div>
+          <div class="f11 tm">Aucune distance saisie pour ce type</div>
+        </div>`;
+        var adjusted=Math.round(best[s.key]*totalFactor);
+        var diffEff=adjusted-target.dist; // en mètres effectifs
+        var conf=shotConfidence(s.key,diffEff);
+        var confColor=conf>=80?'#16a34a':conf>=60?'#d97706':'#dc2626';
+        var diffLabel=Math.abs(diffEff)<=1?'✅ parfait':diffEff>0?`dépasse de ${diffEff}m`:`court de ${Math.abs(diffEff)}m`;
+        return`<div style="padding:10px 0;border-bottom:1px solid #f0f0f0">
+          <div class="f fc g8 mb0" style="margin-bottom:6px">
+            <div style="font-size:22px">${s.icon}</div>
+            <div style="flex:1">
+              <div class="fw7 f13" style="color:${s.color}">${s.label}</div>
+              <div class="f11 tm">${diffLabel}</div>
+            </div>
+            ${S.advShowConfidence?`<div style="text-align:right;min-width:60px"><div class="fw8 f14" style="color:${confColor}">${conf}%</div><div class="f11 tm">confiance</div></div>`:''}
+          </div>
+          <div class="f fc g8" style="padding:8px 10px;background:#f8fafc;border-radius:10px">
+            <div style="font-size:24px">${best.icon}</div>
+            <div style="flex:1">
+              <div class="fw7 f14">${esc(best.name)}</div>
+              <div class="f11 tm">Ref ${best[s.key]}m → effectif <b>${adjusted}m</b></div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  return`<div class="hdr"><button class="back" onclick="S.advisorReturnTo=null;go('${backTarget}')">‹</button><h1>🎯 Quel club ?</h1>
+    ${inGame?`<span class="badge bg" style="background:#16a34a;color:#fff">Partie en cours</span>`:''}
+  </div>
+  <div class="content an">
+
+    ${playerOptions.length>1?`<div class="card" style="padding:10px"><div class="f g8" style="flex-wrap:wrap">
+      ${playerOptions.map(pl=>`<button class="btn bsm mb0 ${S.clubsPlayerId===pl.id?'bp':'bo'}" onclick="S.clubsPlayerId='${pl.id}';render()">${esc(pl.name)}</button>`).join('')}
+    </div></div>`:''}
+
+    <!-- Conditions du jour -->
+    <div class="card" style="background:#f0fdf4;border-left:4px solid #16a34a">
+      <div class="f fc g8 mb0" style="margin-bottom:10px">
+        <div style="font-size:22px">☀️</div>
+        <div style="flex:1">
+          <div class="fw7 f13">Conditions du jour</div>
+          <div class="f11 tm">🌡️ ${temp}°C · 💧 ${hum}% d'humidité</div>
+        </div>
+        <button class="btn bxs bo mb0" onclick="S.advEditConditions=!S.advEditConditions;render()">${S.advEditConditions?'✅':'✏️'}</button>
+      </div>
+      ${S.advEditConditions?`
+      <div class="f g8 mt8">
+        <div class="fg mb0" style="flex:1"><label class="lbl">Température (°C)</label>
+          <input type="number" class="inp" value="${temp}" min="-10" max="45" onchange="DB.roundConditions.temp=parseInt(this.value)||20;save()">
+        </div>
+        <div class="fg mb0" style="flex:1"><label class="lbl">Humidité (%)</label>
+          <input type="number" class="inp" value="${hum}" min="0" max="100" onchange="DB.roundConditions.humidity=parseInt(this.value)||50;save()">
+        </div>
+      </div>
+      <div class="f11 tm mt8">💡 Conditions gardées en mémoire jusqu'à modification.</div>
+      `:''}
+    </div>
+
+    <!-- Options d'affichage -->
+    <div class="card" style="padding:12px">
+      <div class="ct" style="margin-bottom:10px">⚙️ Options</div>
+      <label class="f fc g8" style="padding:8px 0;cursor:pointer">
+        <input type="checkbox" ${S.advShow3Targets?'checked':''} onchange="S.advShow3Targets=event.target.checked;render()" style="width:20px;height:20px;accent-color:var(--gdk)">
+        <div style="flex:1">
+          <div class="fw7 f13">Viser 3 zones du green</div>
+          <div class="f11 tm">Avant, centre, arrière — 3 distances distinctes</div>
+        </div>
+      </label>
+      <label class="f fc g8" style="padding:8px 0;cursor:pointer;border-top:1px solid #f0f0f0">
+        <input type="checkbox" ${S.advShowConfidence?'checked':''} onchange="S.advShowConfidence=event.target.checked;render()" style="width:20px;height:20px;accent-color:var(--gdk)">
+        <div style="flex:1">
+          <div class="fw7 f13">Afficher la probabilité de réussite</div>
+          <div class="f11 tm">% de chance de tomber dans la cible</div>
+        </div>
+      </label>
+    </div>
+
+    <!-- Distance(s) cible -->
+    ${S.advShow3Targets?`
+    <div class="card">
+      <div class="ct">📏 Distances (avant / centre / arrière)</div>
+      <div class="f g8">
+        <div class="fg mb0" style="flex:1"><label class="lbl" style="color:#06b6d4">⏩ Avant</label>
+          <input type="number" class="inp" value="${S.advDistFront}" min="20" max="300" onchange="S.advDistFront=parseInt(this.value)||S.advDist-4;render()" style="text-align:center;font-weight:700">
+        </div>
+        <div class="fg mb0" style="flex:1"><label class="lbl" style="color:#16a34a">🎯 Centre</label>
+          <input type="number" class="inp" value="${S.advDist}" min="20" max="300" onchange="S.advDist=parseInt(this.value)||140;render()" style="text-align:center;font-weight:700">
+        </div>
+        <div class="fg mb0" style="flex:1"><label class="lbl" style="color:#d97706">⏪ Arrière</label>
+          <input type="number" class="inp" value="${S.advDistBack}" min="20" max="300" onchange="S.advDistBack=parseInt(this.value)||S.advDist+4;render()" style="text-align:center;font-weight:700">
+        </div>
+      </div>
+      <button class="btn bxs bo mb0 mt8" onclick="S.advDistFront=S.advDist-4;S.advDistBack=S.advDist+4;render()">📐 Auto : centre ±4m</button>
+    </div>
+    `:`
+    <div class="card">
+      <div class="ct">📏 Distance cible : <span style="color:var(--g)">${S.advDist} m</span></div>
+      <input type="range" min="20" max="280" step="5" value="${S.advDist}" oninput="S.advDist=parseInt(this.value);render()" style="width:100%">
+      <div class="f g8 mt8">
+        <button class="btn bxs bo mb0" onclick="S.advDist=Math.max(20,S.advDist-5);render()">−5m</button>
+        <button class="btn bxs bo mb0" onclick="S.advDist=Math.max(20,S.advDist-1);render()">−1m</button>
+        <input type="number" class="inp" value="${S.advDist}" min="20" max="400" onchange="S.advDist=parseInt(this.value)||140;render()" style="flex:1;text-align:center;font-weight:700">
+        <button class="btn bxs bo mb0" onclick="S.advDist=Math.min(300,S.advDist+1);render()">+1m</button>
+        <button class="btn bxs bo mb0" onclick="S.advDist=Math.min(300,S.advDist+5);render()">+5m</button>
+      </div>
+    </div>
+    `}
+
+    <div class="card">
+      <div class="ct">🌿 Lie</div>
+      <div class="f g8" style="flex-wrap:wrap">
+        ${['tee','fairway','roughLeger','roughEpais','roughDense','bunkerFW','divot','flier'].map(l=>`<button class="btn bsm mb0 ${lie===l?'bp':'bo'}" style="flex:1 1 45%" onclick="S.advLie='${l}';render()">${lieLabels[l]}</button>`).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">🌬️ Vent : ${wind} km/h ${wDir==='nul'?'':`· ${wDir==='face'?'face':wDir==='portant'?'portant':'travers'}`}</div>
+      <input type="range" min="0" max="60" step="5" value="${wind}" oninput="S.advWind=parseInt(this.value);render()" style="width:100%">
+      <div class="f g8 mt8">
+        <button class="btn bsm mb0 ${wDir==='nul'?'bp':'bo'}" style="flex:1" onclick="S.advWindDir='nul';S.advWind=0;render()">Nul</button>
+        <button class="btn bsm mb0 ${wDir==='face'?'bp':'bo'}" style="flex:1" onclick="S.advWindDir='face';render()">🌬️ Face</button>
+        <button class="btn bsm mb0 ${wDir==='portant'?'bp':'bo'}" style="flex:1" onclick="S.advWindDir='portant';render()">🍃 Portant</button>
+        <button class="btn bsm mb0 ${wDir==='travers'?'bp':'bo'}" style="flex:1" onclick="S.advWindDir='travers';render()">↔️ Travers</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">⛰️ Pente : ${slope>=0?'+':''}${slope}°</div>
+      <div class="f g8" style="flex-wrap:wrap">
+        <button class="btn bsm mb0 ${slope<=-10?'bp':'bo'}" style="flex:1 1 30%" onclick="S.advSlope=-15;render()">⬇️ Descente</button>
+        <button class="btn bsm mb0 ${slope>-10&&slope<=-5?'bp':'bo'}" style="flex:1 1 30%" onclick="S.advSlope=-7;render()">↘️ Légère</button>
+        <button class="btn bsm mb0 ${slope>-5&&slope<5?'bp':'bo'}" style="flex:1 1 30%" onclick="S.advSlope=0;render()">➡️ Plat</button>
+        <button class="btn bsm mb0 ${slope>=5&&slope<10?'bp':'bo'}" style="flex:1 1 30%" onclick="S.advSlope=7;render()">↗️ Légère</button>
+        <button class="btn bsm mb0 ${slope>=10?'bp':'bo'}" style="flex:1 1 30%" onclick="S.advSlope=15;render()">⬆️ Montée</button>
+      </div>
+    </div>
+
+    <!-- Ajustement global -->
+    <div class="card" style="padding:10px 12px">
+      <div class="f fc g8">
+        <div style="font-size:24px;font-weight:800;color:${pctTotal===0?'var(--mu)':pctTotal>0?'var(--g)':'var(--red)'}">${pctTotal>=0?'+':''}${pctTotal}%</div>
+        <div class="f11 tm" style="flex:1">Ajustement total des conditions</div>
+      </div>
+    </div>
+
+    <!-- Recommandations -->
+    ${noData?`
+    <div class="card" style="text-align:center;background:#fef3c7">
+      <div style="font-size:32px">📏</div>
+      <div class="fw7">Saisis d'abord tes distances par club</div>
+      <button class="btn bp mt8" onclick="go('clubsEdit')">Aller saisir</button>
+    </div>
+    `:targets.map(t=>renderTargetRecs(t)).join('')}
+
+  </div>`;
+}
+
+function clubsCalcView(){
+  var p=DB.players.find(pl=>pl.id===S.clubsPlayerId);
+  if(!p)return clubsView();
+  if(S.calcTemp==null)S.calcTemp=20;
+  if(S.calcWind==null)S.calcWind=0;
+  if(!S.calcDir)S.calcDir='nul';
+  if(S.calcHum==null)S.calcHum=50;
+  if(!S.calcLie)S.calcLie='fairway';
+  if(S.calcSlope==null)S.calcSlope=0;
+  var temp=S.calcTemp;var wind=S.calcWind;var dir=S.calcDir;var hum=S.calcHum;var lie=S.calcLie;var slope=S.calcSlope;
+  var tf=tempFactor(temp);var wf=windFactor(wind,dir);var hf=humidityFactor(hum);var lf=lieFactor(lie);var sf=slopeFactor(slope);
+  var total=tf*wf*hf*lf*sf;
+  var pctTotal=Math.round((total-1)*100);
+  var tempLabel=temp<10?'❄️ Hiver froid (<10°C)':temp<15?'🌤️ Frais':temp<=25?'☀️ Idéal (15-25°C)':temp<=30?'🔥 Chaud':'🌋 Canicule (>30°C)';
+  var dirLabel=dir==='nul'?'Pas de vent':dir==='face'?'🌬️ Vent de face':dir==='portant'?'🍃 Vent portant':'↔️ Travers';
+  var humLabel=hum<30?'☀️ Très sec':hum<=70?'💧 Normal':hum<=85?'💦 Humide':'🌧️ Détrempé';
+  var lieLabels={tee:'🟩 Tee',fairway:'🟢 Fairway',roughLeger:'🌱 Rough léger',roughEpais:'🌾 Rough épais',roughDense:'🌿 Rough dense',bunkerFW:'🏖️ Bunker fairway',divot:'🕳️ Divot/terre',flier:'✈️ Flier',boue:'💩 Boue'};
+  var slopeLabel=slope<=-10?'⬇️ Grosse descente':slope<=-5?'↘️ Descente':slope<5?'⬅️➡️ Plat':slope<=10?'↗️ Montée':'⬆️ Grosse montée';
+  return`<div class="hdr"><button class="back" onclick="go('clubs')">‹</button><h1>🌡️ Calculateur météo</h1></div>
+  <div class="content an">
+    <div class="card" style="background:linear-gradient(135deg,#0891b2,#06b6d4);color:#fff">
+      <div class="fw7 f13" style="opacity:.9;margin-bottom:4px">Ajustement total</div>
+      <div class="fw8" style="font-size:32px">${pctTotal>=0?'+':''}${pctTotal}%</div>
+      <div class="f11" style="opacity:.85;margin-top:4px">${tempLabel} · ${dirLabel}${wind?' '+wind+' km/h':''}</div>
+    </div>
+
+    <div class="card">
+      <div class="ct">🌡️ Température : <span style="color:var(--g)">${temp}°C</span></div>
+      <input type="range" min="-5" max="40" step="1" value="${temp}" oninput="S.calcTemp=parseInt(this.value);render()" style="width:100%">
+      <div class="f11 tm f" style="justify-content:space-between;margin-top:-4px">
+        <span>-5°C</span><span>20°C</span><span>40°C</span>
+      </div>
+      <div class="f g8 mt8">
+        <button class="btn bsm mb0 ${temp<10?'bp':'bo'}" style="flex:1" onclick="S.calcTemp=5;render()">❄️ &lt;10°C</button>
+        <button class="btn bsm mb0 ${temp>=10&&temp<15?'bp':'bo'}" style="flex:1" onclick="S.calcTemp=12;render()">🌤️ 10-15°C</button>
+        <button class="btn bsm mb0 ${temp>=15&&temp<=25?'bp':'bo'}" style="flex:1" onclick="S.calcTemp=20;render()">☀️ Idéal</button>
+        <button class="btn bsm mb0 ${temp>25&&temp<=30?'bp':'bo'}" style="flex:1" onclick="S.calcTemp=28;render()">🔥 25-30°C</button>
+        <button class="btn bsm mb0 ${temp>30?'bp':'bo'}" style="flex:1" onclick="S.calcTemp=33;render()">🌋 &gt;30°C</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">🌬️ Vent : <span style="color:var(--g)">${wind} km/h</span></div>
+      <input type="range" min="0" max="60" step="5" value="${wind}" oninput="S.calcWind=parseInt(this.value);render()" style="width:100%">
+      <div class="f11 tm f" style="justify-content:space-between;margin-top:-4px">
+        <span>0</span><span>30 km/h</span><span>60 km/h</span>
+      </div>
+      <div class="lbl mt8">Direction</div>
+      <div class="f g8">
+        <button class="btn bsm mb0 ${dir==='nul'?'bp':'bo'}" style="flex:1" onclick="S.calcDir='nul';render()">Nul</button>
+        <button class="btn bsm mb0 ${dir==='face'?'bp':'bo'}" style="flex:1" onclick="S.calcDir='face';render()">🌬️ Face</button>
+        <button class="btn bsm mb0 ${dir==='portant'?'bp':'bo'}" style="flex:1" onclick="S.calcDir='portant';render()">🍃 Portant</button>
+        <button class="btn bsm mb0 ${dir==='travers'?'bp':'bo'}" style="flex:1" onclick="S.calcDir='travers';render()">↔️ Travers</button>
+      </div>
+      <div class="f11 tm mt8" style="padding:8px;background:#f8fafc;border-radius:8px;line-height:1.5">
+        💡 <b>Vent de travers</b> : n'impacte pas la distance mais vise compensé.<br>
+        ⚠️ <b>Ordre de grandeur</b> : face 25 km/h ≈ 1 club en plus, face 40 km/h ≈ 2-3 clubs en plus.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">💧 Humidité : <span style="color:var(--g)">${hum}%</span> <span class="f11 tm">(${humLabel})</span></div>
+      <input type="range" min="0" max="100" step="5" value="${hum}" oninput="S.calcHum=parseInt(this.value);render()" style="width:100%">
+      <div class="f11 tm f" style="justify-content:space-between;margin-top:-4px">
+        <span>0%</span><span>50%</span><span>100%</span>
+      </div>
+      <div class="f g8 mt8" style="flex-wrap:wrap">
+        <button class="btn bsm mb0 ${hum<30?'bp':'bo'}" style="flex:1" onclick="S.calcHum=20;render()">☀️ Sec</button>
+        <button class="btn bsm mb0 ${hum>=30&&hum<=70?'bp':'bo'}" style="flex:1" onclick="S.calcHum=50;render()">💧 Normal</button>
+        <button class="btn bsm mb0 ${hum>70&&hum<=85?'bp':'bo'}" style="flex:1" onclick="S.calcHum=80;render()">💦 Humide</button>
+        <button class="btn bsm mb0 ${hum>85?'bp':'bo'}" style="flex:1" onclick="S.calcHum=95;render()">🌧️ Détrempé</button>
+      </div>
+      <div class="f11 tm mt8" style="padding:8px;background:#f8fafc;border-radius:8px;line-height:1.5">
+        💡 <b>Air sec</b> : fairways durs → plus de roll (+1%).<br>
+        💦 <b>Humide/pluie</b> : greens et fairways mous, balles freinées → jusqu'à -2%.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">🌿 Lie (position de balle)</div>
+      <div class="f g8" style="flex-wrap:wrap">
+        ${['tee','fairway','roughLeger','roughEpais','roughDense','bunkerFW','divot','flier','boue'].map(l=>`<button class="btn bsm mb0 ${lie===l?'bp':'bo'}" style="flex:1 1 45%" onclick="S.calcLie='${l}';render()">${lieLabels[l]}</button>`).join('')}
+      </div>
+      <div class="f11 tm mt8" style="padding:8px;background:#f8fafc;border-radius:8px;line-height:1.5">
+        💡 <b>Flier</b> : balle posée haut dans rough léger, de l'herbe s'interpose → <b>plus de distance mais moins de spin et contrôle</b>. Attention aux verts.<br>
+        ⚠️ <b>Bunker fairway</b> : perte ~10% à 15%, prends 1 club de plus et frappe clean.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">⛰️ Pente du terrain : <span style="color:var(--g)">${slope>=0?'+':''}${slope}°</span> <span class="f11 tm">(${slopeLabel})</span></div>
+      <input type="range" min="-20" max="20" step="5" value="${slope}" oninput="S.calcSlope=parseInt(this.value);render()" style="width:100%">
+      <div class="f11 tm f" style="justify-content:space-between;margin-top:-4px">
+        <span>-20° descente</span><span>0° plat</span><span>+20° montée</span>
+      </div>
+      <div class="f g8 mt8" style="flex-wrap:wrap">
+        <button class="btn bsm mb0 ${slope<=-10?'bp':'bo'}" style="flex:1 1 30%" onclick="S.calcSlope=-15;render()">⬇️ Descente</button>
+        <button class="btn bsm mb0 ${slope>-10&&slope<=-5?'bp':'bo'}" style="flex:1 1 30%" onclick="S.calcSlope=-7;render()">↘️ Léger</button>
+        <button class="btn bsm mb0 ${slope>-5&&slope<5?'bp':'bo'}" style="flex:1 1 30%" onclick="S.calcSlope=0;render()">➡️ Plat</button>
+        <button class="btn bsm mb0 ${slope>=5&&slope<10?'bp':'bo'}" style="flex:1 1 30%" onclick="S.calcSlope=7;render()">↗️ Léger</button>
+        <button class="btn bsm mb0 ${slope>=10?'bp':'bo'}" style="flex:1 1 30%" onclick="S.calcSlope=15;render()">⬆️ Montée</button>
+      </div>
+      <div class="f11 tm mt8" style="padding:8px;background:#f8fafc;border-radius:8px;line-height:1.5">
+        💡 <b>Balle en montée</b> : le loft effectif du club augmente → ball plus haute, moins de distance.<br>
+        💡 <b>Balle en descente</b> : loft effectif diminue → ball plus basse, plus de distance.
+      </div>
+    </div>
+
+    <div class="card" style="background:#f8fafc;padding:12px">
+      <div class="ct" style="margin-bottom:8px">🔬 Détail des facteurs appliqués</div>
+      <div class="sr"><span class="f12 tm">🌡️ Température</span><span class="fw7 f13" style="color:${tf===1?'var(--mu)':(tf>1?'var(--g)':'var(--red)')}">${Math.round((tf-1)*100)>=0?'+':''}${Math.round((tf-1)*100)}%</span></div>
+      <div class="sr"><span class="f12 tm">🌬️ Vent</span><span class="fw7 f13" style="color:${wf===1?'var(--mu)':(wf>1?'var(--g)':'var(--red)')}">${Math.round((wf-1)*100)>=0?'+':''}${Math.round((wf-1)*100)}%</span></div>
+      <div class="sr"><span class="f12 tm">💧 Humidité</span><span class="fw7 f13" style="color:${hf===1?'var(--mu)':(hf>1?'var(--g)':'var(--red)')}">${Math.round((hf-1)*100)>=0?'+':''}${Math.round((hf-1)*100)}%</span></div>
+      <div class="sr"><span class="f12 tm">🌿 Lie</span><span class="fw7 f13" style="color:${lf===1?'var(--mu)':(lf>1?'var(--g)':'var(--red)')}">${Math.round((lf-1)*100)>=0?'+':''}${Math.round((lf-1)*100)}%</span></div>
+      <div class="sr"><span class="f12 tm">⛰️ Pente</span><span class="fw7 f13" style="color:${sf===1?'var(--mu)':(sf>1?'var(--g)':'var(--red)')}">${Math.round((sf-1)*100)>=0?'+':''}${Math.round((sf-1)*100)}%</span></div>
+    </div>
+
+    <div class="st">📏 Distances ajustées</div>
+    ${renderClubsTable(p,true)}
+  </div>`;
+}
 // ══ HANDICAP ══════════════════════════════════════════════════════════════
 function hdj(index,course,tee){
   const t=tee||'blanc';
@@ -5202,7 +5820,7 @@ function playing(){
   return`
   <div class="hdr"><button class="back" onclick="go('home')">‹</button>
   <h1 style="font-size:14px">${esc(course.name)} <span style='font-size:11px;opacity:.8'>${g.tee==='jaune'?'🟡':'⬜'}</span></h1>
-  <div style="display:flex;gap:6px"><a href="https://18birdies.com" class="ha" title="18Birdies GPS" style="font-size:18px;width:48px;height:48px;display:flex;align-items:center;justify-content:center;text-decoration:none">🐦</a><button class="ha" onclick="go('scorecard')" style="font-size:22px;width:96px;height:48px">📊</button><button class="ha" onclick="shareScores()" style="font-size:22px;width:48px;height:48px">📲</button><button class="ha" onclick="${DB.game?.liveId?'stopLiveShare()':'startLiveShare()'}" title="Partage live" style="font-size:22px;width:48px;height:48px;${DB.game?.liveId?'background:rgba(22,163,74,.15);color:#16a34a':''}">📡</button><button class="ha" onclick="terminateGame()" title="Terminer la partie" style="font-size:22px;width:48px;height:48px">🏁</button></div></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><a href="https://18birdies.com" class="ha" title="18Birdies GPS" style="font-size:18px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;text-decoration:none">🐦</a><button class="ha" onclick="openAdvisorFromGame()" title="Quel club ?" style="font-size:20px;width:44px;height:44px;background:rgba(22,163,74,.15);color:#16a34a">🎯</button><button class="ha" onclick="go('scorecard')" style="font-size:20px;width:44px;height:44px">📊</button><button class="ha" onclick="shareScores()" style="font-size:20px;width:44px;height:44px">📲</button><button class="ha" onclick="${DB.game?.liveId?'stopLiveShare()':'startLiveShare()'}" title="Partage live" style="font-size:20px;width:44px;height:44px;${DB.game?.liveId?'background:rgba(22,163,74,.15);color:#16a34a':''}">📡</button><button class="ha" onclick="terminateGame()" title="Terminer la partie" style="font-size:20px;width:44px;height:44px">🏁</button></div></div>
   <div class="content an" style="padding-bottom:100px">
     <div class="hh">
       <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.5px">Trou</div>
