@@ -6551,6 +6551,17 @@ function terminateGame(){
     DB.game=null;save();go('results');
   });
 }
+function relinkHistoryCourse(histIdx,courseId){
+  var g=DB.history[histIdx];if(!g)return;
+  var c=cById(courseId);if(!c){alert('Parcours introuvable');return;}
+  if(!confirm('Associer cette partie au parcours "'+c.name+'" ?\n\nLes scores seront conservés mais les pars/handicaps utiliseront ce parcours.'))return;
+  DB.history[histIdx].courseId=courseId;save();render();
+}
+function deleteBrokenHistoryEntry(histIdx){
+  conf('Supprimer définitivement cette partie de l\'historique ?','Cette action est irréversible.',function(){
+    DB.history.splice(histIdx,1);S.histViewIdx=null;save();go('history');
+  });
+}
 function recoverLiveGamePrompt(){
   var id=prompt('Entre l\'ID de la partie diffusée (format g-xxxxxx) :','');
   if(!id)return;
@@ -7433,7 +7444,38 @@ function doExcelExport(){
 // ══ RESULTS ═══════════════════════════════════════════════════════════════
 function results(){
   const g=S.histViewIdx!=null?DB.history[S.histViewIdx]:DB.history[DB.history.length-1];if(!g)return home();
-  const course=cById(g.courseId);const pls=g.playerIds.map(id=>pById(id));const gti=GT[g.gameType];
+  const fromHistoryEarly=S.histViewIdx!=null;
+  let course=cById(g.courseId);const pls=g.playerIds.map(id=>pById(id));const gti=GT[g.gameType];
+  // Garde-fou : parcours manquant (supprimé, renommé → ID perdu)
+  if(!course){
+    const dateStr=g.startedAt?new Date(g.startedAt).toLocaleString('fr-FR'):'?';
+    const missingNames=g.playerIds.map(id=>{const p=pById(id);return p?null:id;}).filter(Boolean);
+    return`<div class="hdr">${fromHistoryEarly?`<button class="back" onclick="S.histViewIdx=null;go('history')">‹</button>`:`<button class="back" onclick="go('home')">‹</button>`}<h1>Partie incomplète</h1></div>
+    <div class="content an">
+      <div class="card" style="background:#fef3c7;border-left:4px solid #f59e0b">
+        <div class="ct">⚠️ Parcours introuvable</div>
+        <p class="f13 tm">Cette partie du ${esc(dateStr)} référence un parcours qui n'existe plus sur cet appareil (supprimé ou recréé avec un autre ID). Les scores sont conservés mais ne peuvent pas être affichés sans le parcours.</p>
+        <p class="f12 tm">courseId manquant : <code>${esc(g.courseId||'(vide)')}</code></p>
+        ${missingNames.length?`<p class="f12 tm">Joueurs aussi manquants : ${missingNames.length}</p>`:''}
+      </div>
+      <div class="card">
+        <div class="ct">Solutions</div>
+        <ul class="f13 tm" style="padding-left:18px;line-height:1.7">
+          <li>Si tu as toujours le lien live <code>g-xxxxxx</code> de cette partie : Historique → <b>📡 Récupérer une partie diffusée</b> (recrée la partie proprement).</li>
+          <li>Sinon : associe cette partie à un parcours existant pour pouvoir la consulter.</li>
+        </ul>
+        ${DB.courses.length?`<div class="f11 tm mt8">Parcours disponibles :</div>
+        <div class="f g8 mt8" style="flex-wrap:wrap">${DB.courses.map(c=>`<button class="btn bsm bo mb0" onclick="relinkHistoryCourse(${S.histViewIdx!=null?S.histViewIdx:DB.history.length-1},'${c.id}')">${esc(c.name)}</button>`).join('')}</div>`:''}
+      </div>
+      <div class="rb mt8">
+        <button class="btn bd mb0" onclick="deleteBrokenHistoryEntry(${S.histViewIdx!=null?S.histViewIdx:DB.history.length-1})">🗑 Supprimer cette entrée</button>
+      </div>
+    </div>`;
+  }
+  // Garde-fou : joueurs manquants → crée des stubs temporaires pour ne pas crasher
+  for(let i=0;i<pls.length;i++){
+    if(!pls[i])pls[i]={id:g.playerIds[i]||'?',name:'(Joueur supprimé)',index:54,_stub:true};
+  }
   let ranks=pls.map((p,pi)=>{
     let gr=0,net=0,pts=0;
     g.scores.forEach((hs,hi)=>{const s=hs[pi];if(!s)return;const st=hcpStr(g,pi,hi);gr+=s;net+=s-st;pts+=sfPoints(s,course.holes[hi].par,st)});
