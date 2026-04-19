@@ -9259,21 +9259,74 @@ function cloudRestoreConfirm(code,data){
   if(mode==='replace'&&!confirm('⚠️ ATTENTION\n\nRemplacer va SUPPRIMER toutes tes données actuelles pour les remplacer par celles du backup cloud.\n\nCette action est IRRÉVERSIBLE. Continuer ?'))return;
   cloudDoRestore(data,mode);
 }
+function _normKey(s){return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'').trim();}
+function _dedupKeyFor(catKey,item){
+  // Clé secondaire de dédoublonnage par catégorie (au-delà de l'id)
+  if(!item)return null;
+  if(catKey==='courses')return _normKey(item.name);
+  if(catKey==='players')return _normKey(item.name)+'|'+_normKey(item.firstName||'');
+  if(catKey==='championships')return _normKey(item.name);
+  if(catKey==='history')return item.startedAt?('hist|'+item.startedAt+'|'+_normKey(item.courseId||'')):null;
+  if(catKey==='favGames')return _normKey(item.name);
+  return null;
+}
+function dedupAll(){
+  var cats=['courses','players','championships','favGames'];
+  var report={};
+  var idMap={}; // ancien id doublon -> id conservé (pour recable éventuel)
+  cats.forEach(key=>{
+    var arr=DB[key];if(!Array.isArray(arr))return;
+    var keep=[];var seen={};var removed=0;
+    arr.forEach(item=>{
+      if(!item){return;}
+      var k=_dedupKeyFor(key,item);
+      if(k&&seen[k]){
+        if(item.id&&seen[k].id)idMap[item.id]=seen[k].id;
+        removed++;return;
+      }
+      keep.push(item);if(k)seen[k]=item;
+    });
+    DB[key]=keep;report[key]=removed;
+  });
+  // Recable les courseId dans l'historique si un parcours doublon a été supprimé
+  if(Array.isArray(DB.history)){
+    DB.history.forEach(g=>{if(g&&g.courseId&&idMap[g.courseId])g.courseId=idMap[g.courseId];});
+  }
+  save();
+  var lines=Object.keys(report).map(k=>'• '+k+' : '+report[k]+' doublon(s) supprimé(s)');
+  alert('🧹 Nettoyage terminé\n\n'+lines.join('\n')+'\n\nL\'app va se recharger.');
+  location.reload();
+}
 function cloudDoRestore(data,mode){
+  var mergeReport={};
   BACKUP_CATS.forEach(c=>{
     var v=data[c.key];if(v==null)return;
-    if(mode==='replace'){DB[c.key]=v;}
-    else{
-      if(Array.isArray(v)&&Array.isArray(DB[c.key])){
-        var existingIds=new Set((DB[c.key]||[]).map(x=>x&&x.id).filter(Boolean));
-        v.forEach(item=>{if(!item||(item.id&&existingIds.has(item.id)))return;DB[c.key].push(item);});
-      }else if(typeof v==='object'&&v&&typeof DB[c.key]==='object'){
-        Object.assign(DB[c.key]||{},v);
-      }else{DB[c.key]=v;}
-    }
+    if(mode==='replace'){DB[c.key]=v;return;}
+    if(Array.isArray(v)&&Array.isArray(DB[c.key])){
+      var existingIds=new Set((DB[c.key]||[]).map(x=>x&&x.id).filter(Boolean));
+      var existingKeys=new Set((DB[c.key]||[]).map(x=>_dedupKeyFor(c.key,x)).filter(Boolean));
+      var added=0,skipped=0;
+      v.forEach(item=>{
+        if(!item){skipped++;return;}
+        if(item.id&&existingIds.has(item.id)){skipped++;return;}
+        var k=_dedupKeyFor(c.key,item);
+        if(k&&existingKeys.has(k)){skipped++;return;}
+        DB[c.key].push(item);
+        if(item.id)existingIds.add(item.id);
+        if(k)existingKeys.add(k);
+        added++;
+      });
+      mergeReport[c.key]={added:added,skipped:skipped};
+    }else if(typeof v==='object'&&v&&typeof DB[c.key]==='object'){
+      Object.assign(DB[c.key]||{},v);
+    }else{DB[c.key]=v;}
   });
   save();
-  alert('✅ Restauration terminée ('+mode+')\n\nL\'app va se recharger pour appliquer tous les changements.');
+  var lines=Object.keys(mergeReport).map(k=>{
+    var cat=BACKUP_CATS.find(c=>c.key===k);
+    return '• '+(cat?cat.emoji+' '+cat.label:k)+' : +'+mergeReport[k].added+(mergeReport[k].skipped>0?' (doublons ignorés : '+mergeReport[k].skipped+')':'');
+  });
+  alert('✅ Restauration terminée ('+mode+')\n\n'+(lines.length?lines.join('\n')+'\n\n':'')+'L\'app va se recharger.');
   location.reload();
 }
 function cloudBackupView(){
@@ -9314,6 +9367,11 @@ function cloudBackupView(){
       <div class="ct">Restaurer depuis un code</div>
       <p class="f13 tm" style="margin-bottom:12px">Tu as un code (nouvel iPhone, autre membre de la famille) ? Récupère les données associées.</p>
       <button class="btn bg2 mb0" onclick="cloudRestorePrompt()">📥 Restaurer avec un code</button>
+    </div>
+    <div class="card">
+      <div class="ct">🧹 Nettoyer les doublons</div>
+      <p class="f13 tm" style="margin-bottom:12px">Après une fusion, supprime les parcours/joueurs/championnats en double (même nom).</p>
+      <button class="btn bo mb0" onclick="dedupAll()">🧹 Nettoyer les doublons</button>
     </div>
     <div class="f11 tm" style="margin-top:10px;padding:10px;background:#f8fafc;border-radius:10px;line-height:1.5">
       ℹ️ <b>Confidentialité :</b> tes données sont stockées sur Firebase (Google) dans ta zone privée, accessible uniquement via ton code. Aucun login requis.<br>
