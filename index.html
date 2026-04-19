@@ -646,10 +646,13 @@ function startLiveShare(){
 }
 function stopLiveShare(){
   if(!DB.game||!DB.game.liveId)return;
-  if(fbReady&&fbDb){fbDb.ref('games/'+DB.game.liveId).remove();}
-  delete DB.game.liveId;ls('gm_g',DB.game);
-  document.getElementById('live-modal')?.remove();
-  alert('📴 Partage arrêté');
+  const lid=DB.game.liveId;
+  conf('Arrêter le partage live ?','Le lien spectateur ('+lid+') ne fonctionnera plus. Tu pourras relancer un nouveau partage ensuite (nouveau lien).',()=>{
+    if(fbReady&&fbDb){fbDb.ref('games/'+lid).remove();}
+    delete DB.game.liveId;ls('gm_g',DB.game);
+    document.getElementById('live-modal')?.remove();
+    alert('📴 Partage arrêté');
+  });
 }
 function pushLive(){
   if(!DB.game||!DB.game.liveId||!fbReady)return;
@@ -6495,9 +6498,14 @@ function spawnConfetti(n){
   html+='</div>';
   return html;
 }
+function cleanupLiveBroadcast(liveId){
+  if(!liveId)return;
+  try{if(fbReady&&fbDb)fbDb.ref('games/'+liveId).remove();}catch(e){}
+}
 function finishGame(){
   processHole(DB.game,DB.game.currentHole);
   const finished={...DB.game,finishedAt:Date.now()};
+  const liveIdToClean=finished.liveId;
   DB.history.push(finished);
   // Push vers Firebase si championnat en ligne
   if(finished.championshipId){
@@ -6506,19 +6514,41 @@ function finishGame(){
   }
   // Push les manches pour les joueurs ayant un code global
   try{pushRoundForAllGlobalPlayers(finished);}catch(e){console.warn(e);}
+  // Nettoie la diffusion live (évite les parties fantômes sur Firebase)
+  cleanupLiveBroadcast(liveIdToClean);
   DB.game=null;save();go('results');
 }
 function terminateGame(){
   conf('Terminer la partie ?','Les scores saisis seront enregistrés.',()=>{
     processHole(DB.game,DB.game.currentHole);
     const finished={...DB.game,finishedAt:Date.now()};
+    const liveIdToClean=finished.liveId;
     DB.history.push(finished);
     if(finished.championshipId){
       const ch=DB.championships.find(c=>c.id===finished.championshipId);
       if(ch&&ch.online){try{onlineChampPushRound(ch,finished);}catch(e){console.warn(e);}}
     }
     try{pushRoundForAllGlobalPlayers(finished);}catch(e){console.warn(e);}
+    cleanupLiveBroadcast(liveIdToClean);
     DB.game=null;save();go('results');
+  });
+}
+function stopArchivedBroadcast(histIdx){
+  const g=DB.history[histIdx];if(!g||!g.liveId)return;
+  const lid=g.liveId;
+  conf('Arrêter la diffusion ?','La partie restera dans ton historique mais ne sera plus accessible par le lien de partage.',()=>{
+    if(fbReady&&fbDb){
+      fbDb.ref('games/'+lid).remove().then(()=>{
+        delete DB.history[histIdx].liveId;save();alert('📴 Diffusion arrêtée');render();
+      }).catch(e=>alert('Erreur : '+e.message));
+    }else{
+      initFirebase();
+      waitForAuth(5000).then(()=>{
+        fbDb.ref('games/'+lid).remove().then(()=>{
+          delete DB.history[histIdx].liveId;save();alert('📴 Diffusion arrêtée');render();
+        });
+      }).catch(()=>alert('Impossible de se connecter à Firebase'));
+    }
   });
 }
 function abandonGame(){DB.game=null;save();go('home')}
@@ -7408,6 +7438,7 @@ function results(){
       <button class="btn mb0" style="flex:1;background:#25D366;color:#fff;border:none" onclick="shareResults()">📲 WhatsApp</button>
     </div>
     <div class="rb mt8"><button class="btn bo mb0" onclick="startEditScores(${S.histViewIdx!=null?S.histViewIdx:DB.history.length-1})">✏️ Corriger</button></div>
+    ${fromHistory&&g.liveId?`<div class="rb mt8"><button class="btn bd mb0" onclick="stopArchivedBroadcast(${S.histViewIdx})">🛑 Arrêter la diffusion live (${g.liveId})</button></div>`:''}
     <div class="rb mt8">${fromHistory?`<button class="btn bp mb0" onclick="S.histViewIdx=null;go('history')">← Historique</button>`:
     `<button class="btn bp mb0" onclick="go('home')">🏠 Accueil</button>`}</div>
     ${!fromHistory?`<button class="btn bgr mt8" onclick="startSetup()">🏌️ Nouvelle partie</button>`:''}
