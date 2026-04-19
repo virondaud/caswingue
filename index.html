@@ -824,7 +824,7 @@ function defHoles(){
 let S={view:DB.game?'playing':'home',setup:{},ec:null,tab:0,rulesGame:null};window.S=S;
 
 // ══ RENDER ════════════════════════════════════════════════════════════════
-const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView,clubs:clubsView,clubsEdit:clubsEditView,clubsCalc:clubsCalcView,clubsAdvisor:clubsAdvisorView};
+const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView,clubs:clubsView,clubsEdit:clubsEditView,clubsCalc:clubsCalcView,clubsAdvisor:clubsAdvisorView,allGlobalPlayers:allGlobalPlayersView};
 const APP_FOOTER='<div style="text-align:center;padding:18px 0 10px;color:#94a3b8;font-size:12px" ondblclick="activateSuperAdmin()">⛳ Ça Swingue Manager <b>v14</b> · © 2026 Virnaoned</div>';
 function render(){
   const f=VIEWS[S.view];
@@ -4187,6 +4187,11 @@ function home(){
         <div class="lrow-body"><div class="lrow-title">Mes distances par club</div><div class="lrow-sub">Plein / ¾ / ½ · Ajustement météo</div></div>
         <div class="lrow-arr">›</div>
       </button>
+      ${isSuperAdmin()?`<button class="lrow" onclick="go('allGlobalPlayers')">
+        <div class="lrow-icon" style="background:#fef3c7">👑</div>
+        <div class="lrow-body"><div class="lrow-title">Joueurs vérifiés (admin)</div><div class="lrow-sub">Liste globale des codes de joueurs</div></div>
+        <div class="lrow-arr">›</div>
+      </button>`:''}
     </div>
     <div class="st">💾 Mes données</div>
     <div class="card">
@@ -4675,10 +4680,13 @@ function players(){
     <button class="fav-btn" onclick="event.stopPropagation();favP('${p.id}')">${p.fav?'⭐':'☆'}</button>
     <div class="f fc g12" style="flex:1">
       <div class="av" style="background:${gc(i)};color:#fff">${ini(p.name)}</div>
-      <div><div class="lit">${esc(p.name)}</div><div class="lis">Index : ${p.index} · HdJ : ${hdj(p.index,null)}</div></div>
+      <div><div class="lit">${esc(p.name)} ${p.globalCode?'<span class="badge bg" style="background:#0891b2;color:#fff;font-size:10px;margin-left:4px">🆔</span>':''}</div><div class="lis">Index : ${p.index} · HdJ : ${hdj(p.index,null)}</div></div>
     </div>
-    <div class="f g8"><button class="btn bo bxs" onclick="openEditPl('${p.id}')">✏️</button>
-    <button class="btn bd bxs" onclick="delPl('${p.id}')">🗑</button></div>
+    <div class="f g8">
+      <button class="btn bo bxs" onclick="showGlobalPlayerModal('${p.id}')" title="Code global">${p.globalCode?'🔗':'🆔'}</button>
+      <button class="btn bo bxs" onclick="openEditPl('${p.id}')">✏️</button>
+      <button class="btn bd bxs" onclick="delPl('${p.id}')">🗑</button>
+    </div>
   </div>`;
   const favs=DB.players.filter(p=>p.fav);const others=DB.players.filter(p=>!p.fav);
   return`
@@ -4703,6 +4711,208 @@ function savePl(){
 }
 function delPl(id){conf('Supprimer ce joueur ?','',()=>{DB.players=DB.players.filter(p=>p.id!==id);save();render()})}
 function favP(id){const p=pById(id);if(p){p.fav=!p.fav;save();render()}}
+
+// ══ 🆔 IDENTITÉ JOUEUR GLOBALE (Firebase) ═════════════════════════════════
+// Format code : plr-prénom-xxxx (4 caractères aléatoires pour unicité)
+function slugify(s){return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,15);}
+function genPlayerCode(name){
+  var slug=slugify(name)||'joueur';
+  var chars='abcdefghjkmnpqrstuvwxyz23456789';
+  var suffix='';for(var i=0;i<4;i++)suffix+=chars[Math.floor(Math.random()*chars.length)];
+  return 'plr-'+slug+'-'+suffix;
+}
+function playerIsVerified(p){return p&&p.globalCode;}
+
+// Crée une fiche joueur globale sur Firebase
+function createGlobalPlayer(localPlayer,email,cb){
+  if(!initFirebase()){alert('⚠️ Firebase non disponible');return;}
+  waitForAuth(3000).then(uid=>{
+    var code=genPlayerCode(localPlayer.name);
+    var info={
+      name:localPlayer.name,
+      index:localPlayer.index,
+      email:email||null,
+      createdByUid:uid,
+      createdByDevice:getDeviceId(),
+      createdAt:Date.now()
+    };
+    return fbDb.ref('players/'+code+'/info').set(info).then(()=>{
+      // Lie le joueur local au code
+      localPlayer.globalCode=code;
+      save();
+      if(cb)cb(code);
+      alert('✅ Code global créé pour '+localPlayer.name+'\n\n'+code+'\n\nPartage ce code si le joueur veut voir ses stats sur un autre appareil.');
+      render();
+    });
+  }).catch(e=>alert('❌ Erreur : '+e.message));
+}
+
+// Lie un joueur local à un code global existant (télécharge les infos)
+function linkLocalToGlobal(localPlayer,code){
+  if(!initFirebase()){alert('⚠️ Firebase non disponible');return;}
+  code=code.trim().toLowerCase();
+  if(!/^plr-[a-z0-9-]{3,40}$/.test(code)){alert('Format invalide. Attendu : plr-prénom-xxxx');return;}
+  fbDb.ref('players/'+code+'/info').once('value').then(snap=>{
+    var info=snap.val();
+    if(!info){alert('❌ Aucun joueur trouvé avec ce code.');return;}
+    localPlayer.globalCode=code;
+    // Optionnel : mettre à jour le nom/index local avec ceux du global
+    if(confirm('Mettre à jour le nom ('+info.name+') et l\'index ('+info.index+') localement ?')){
+      localPlayer.name=info.name;
+      localPlayer.index=info.index;
+    }
+    save();
+    alert('✅ Joueur lié au code '+code);
+    render();
+  }).catch(e=>alert('❌ Erreur : '+e.message));
+}
+
+function unlinkLocalPlayer(localPlayer){
+  conf('Délier ce joueur de son code global ?','Ses nouvelles parties ne seront plus synchronisées, mais les précédentes restent sur Firebase.',()=>{
+    delete localPlayer.globalCode;
+    save();render();
+  });
+}
+
+// Push une manche sur Firebase pour un joueur global
+function pushRoundForGlobalPlayer(code,game,playerIdx){
+  if(!fbReady||!code)return;
+  var uid=getAuthUid();
+  var course=cById(game.courseId);
+  var playerScore=[];
+  game.scores.forEach((hs,hi)=>{playerScore[hi]=hs[playerIdx]||0;});
+  var payload={
+    gameId:game.id,
+    courseId:game.courseId,
+    courseName:course?.name||game.courseName||'Parcours',
+    coursePar:course?.holes?.reduce((s,h)=>s+h.par,0)||72,
+    holesPar:course?.holes?.map(h=>h.par)||[],
+    holesHcp:course?.holes?.map(h=>h.handicap)||[],
+    gameType:game.gameType,
+    useHandicap:game.useHandicap!==false,
+    tee:game.tee||'jaune',
+    scores:playerScore,
+    startedAt:game.startedAt,
+    finishedAt:game.finishedAt||Date.now(),
+    addedByDevice:getDeviceId(),
+    addedByUid:uid,
+    addedAt:Date.now()
+  };
+  var ref=fbDb.ref('players/'+code+'/rounds').push();
+  ref.set(payload).catch(e=>console.warn('Push player round failed:',e));
+}
+
+// Récupère les manches globales d'un joueur
+function fetchGlobalPlayerRounds(code){
+  if(!fbReady||!code)return Promise.reject(new Error('Firebase non prêt'));
+  return fbDb.ref('players/'+code+'/rounds').once('value').then(snap=>{
+    var data=snap.val()||{};
+    return Object.entries(data).map(([rid,r])=>Object.assign({rid},r));
+  });
+}
+function fetchGlobalPlayerInfo(code){
+  if(!fbReady||!code)return Promise.reject(new Error('Firebase non prêt'));
+  return fbDb.ref('players/'+code+'/info').once('value').then(s=>s.val());
+}
+
+// Vue modale : gérer le code global d'un joueur
+function showGlobalPlayerModal(playerId){
+  var p=pById(playerId);
+  if(!p)return;
+  var existing=document.getElementById('glp-mo');if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.id='glp-mo';
+  div.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;align-items:center;justify-content:center;padding:16px';
+  if(p.globalCode){
+    div.innerHTML=`<div style="background:#fff;border-radius:20px;padding:20px;max-width:400px;width:100%">
+      <div style="font-weight:800;font-size:17px;margin-bottom:12px">🔗 Code global de ${esc(p.name)}</div>
+      <div style="background:#f1f5f9;padding:12px;border-radius:10px;font-family:monospace;font-weight:800;font-size:14px;text-align:center;color:#0891b2;margin-bottom:12px;word-break:break-all">${esc(p.globalCode)}</div>
+      <div class="f g8 mb0" style="margin-bottom:12px">
+        <button class="btn bsm bp mb0" style="flex:1" onclick="navigator.clipboard.writeText('${esc(p.globalCode)}');this.textContent='✅'">📋 Copier</button>
+        <button class="btn bsm mb0" style="flex:1;background:#25D366;color:#fff;border:none" onclick="window.open('https://wa.me/?text='+encodeURIComponent('🏌️ Ton code Ça Swingue Manager :\\n${esc(p.globalCode)}\\n\\nSaisis-le dans ton app pour voir tes stats globales.'),'_blank')">📲 Envoyer</button>
+      </div>
+      <div class="f11 tm" style="padding:10px;background:#f8fafc;border-radius:10px;margin-bottom:12px">
+        ℹ️ Avec ce code, tu (ou ${esc(p.name)}) peut retrouver toutes les parties consolidées depuis n'importe quel appareil.
+      </div>
+      <button class="btn bd mb0" onclick="document.getElementById('glp-mo').remove();unlinkLocalPlayer(pById('${playerId}'))">🔓 Délier du code</button>
+      <button class="btn bo mt8" onclick="document.getElementById('glp-mo').remove()">Fermer</button>
+    </div>`;
+  }else{
+    div.innerHTML=`<div style="background:#fff;border-radius:20px;padding:20px;max-width:400px;width:100%">
+      <div style="font-weight:800;font-size:17px;margin-bottom:12px">🆔 Code global pour ${esc(p.name)}</div>
+      <div class="f11 tm" style="padding:10px;background:#f8fafc;border-radius:10px;margin-bottom:12px;line-height:1.5">
+        Donne à ce joueur une identité globale pour que ses stats soient suivies entre appareils.<br><br>
+        <b>📝 Créer</b> : génère un nouveau code unique<br>
+        <b>🔗 Lier</b> : utilise un code existant (si le joueur en a déjà un)
+      </div>
+      <button class="btn bp mb0" onclick="document.getElementById('glp-mo').remove();var email=prompt('Email (optionnel) :','');createGlobalPlayer(pById('${playerId}'),email)">📝 Créer un nouveau code</button>
+      <button class="btn bg2 mt8" onclick="document.getElementById('glp-mo').remove();var c=prompt('Entre le code existant (plr-xxx) :','');if(c)linkLocalToGlobal(pById('${playerId}'),c)">🔗 Lier à un code existant</button>
+      <button class="btn bo mt8" onclick="document.getElementById('glp-mo').remove()">Annuler</button>
+    </div>`;
+  }
+  document.body.appendChild(div);
+}
+
+// Hook : push les manches des joueurs globaux à la fin d'une partie
+function pushRoundForAllGlobalPlayers(game){
+  if(!game||!game.playerIds||!fbReady)return;
+  game.playerIds.forEach((pid,idx)=>{
+    var p=pById(pid);
+    if(p&&p.globalCode){
+      try{pushRoundForGlobalPlayer(p.globalCode,game,idx);}catch(e){console.warn('push failed for '+pid,e);}
+    }
+  });
+}
+
+// Vue super admin : liste de tous les joueurs globaux
+function allGlobalPlayersView(){
+  if(!isSuperAdmin()){
+    return`<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>Accès refusé</h1></div>
+    <div class="content an"><div class="empty"><div class="ei">🔒</div>Réservé au super admin</div></div>`;
+  }
+  if(!S.allPlayersCache){S.allPlayersCache='loading';
+    if(initFirebase()){
+      fbDb.ref('players').once('value').then(snap=>{
+        S.allPlayersCache=snap.val()||{};
+        render();
+      }).catch(e=>{S.allPlayersCache={};render();});
+    }else S.allPlayersCache={};
+  }
+  var data=S.allPlayersCache;
+  var entries=data==='loading'?[]:Object.entries(data);
+  return`<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>👥 Joueurs vérifiés</h1>
+    <button class="ha" onclick="S.allPlayersCache=null;render()">🔄</button>
+  </div>
+  <div class="content an">
+    <div class="f11 tm" style="padding:10px;background:#f0f9ff;border-radius:10px;margin-bottom:10px">
+      👑 Super admin : liste de tous les joueurs vérifiés sur Firebase
+    </div>
+    ${data==='loading'?`<div class="empty">⏳ Chargement...</div>`:entries.length===0?`<div class="empty"><div class="ei">👤</div>Aucun joueur vérifié</div>`:entries.map(([code,info])=>{
+      var i=info.info||{};
+      var nRounds=info.rounds?Object.keys(info.rounds).length:0;
+      return`<div class="card" style="padding:12px">
+        <div class="f fc g8 mb0" style="margin-bottom:6px">
+          <div class="av" style="background:#0891b2;color:#fff">${ini(i.name||'?')}</div>
+          <div style="flex:1">
+            <div class="fw7 f13">${esc(i.name||'Sans nom')}</div>
+            <div class="f11 tm">Index ${i.index||'–'} · ${nRounds} partie${nRounds>1?'s':''}</div>
+          </div>
+        </div>
+        <div style="background:#f1f5f9;padding:8px;border-radius:8px;font-family:monospace;font-size:12px;word-break:break-all;margin-bottom:6px">${esc(code)}</div>
+        <div class="f11 tm">${i.email?`📧 ${esc(i.email)} · `:''}Créé ${i.createdAt?new Date(i.createdAt).toLocaleDateString('fr-FR'):'inconnue'}</div>
+        <div class="rb mt8">
+          <button class="btn bsm bo mb0" style="flex:1" onclick="navigator.clipboard.writeText('${esc(code)}');this.textContent='✅ Copié'">📋 Copier code</button>
+          <button class="btn bsm bd mb0" onclick="adminDeleteGlobalPlayer('${esc(code)}')">🗑</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+function adminDeleteGlobalPlayer(code){
+  conf('Supprimer ce joueur vérifié ?','Les stats seront perdues définitivement.',()=>{
+    if(fbReady)fbDb.ref('players/'+code).remove().then(()=>{S.allPlayersCache=null;render();});
+  });
+}
 
 // ══ 🎯 DISTANCES PAR CLUB + CALCULATEUR MÉTÉO ═════════════════════════════
 const DEFAULT_CLUBS=[
@@ -6083,6 +6293,8 @@ function finishGame(){
     const ch=DB.championships.find(c=>c.id===finished.championshipId);
     if(ch&&ch.online){try{onlineChampPushRound(ch,finished);}catch(e){console.warn(e);}}
   }
+  // Push les manches pour les joueurs ayant un code global
+  try{pushRoundForAllGlobalPlayers(finished);}catch(e){console.warn(e);}
   DB.game=null;save();go('results');
 }
 function terminateGame(){
@@ -6094,6 +6306,7 @@ function terminateGame(){
       const ch=DB.championships.find(c=>c.id===finished.championshipId);
       if(ch&&ch.online){try{onlineChampPushRound(ch,finished);}catch(e){console.warn(e);}}
     }
+    try{pushRoundForAllGlobalPlayers(finished);}catch(e){console.warn(e);}
     DB.game=null;save();go('results');
   });
 }
