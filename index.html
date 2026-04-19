@@ -6551,6 +6551,87 @@ function terminateGame(){
     DB.game=null;save();go('results');
   });
 }
+function recoverLiveGamePrompt(){
+  var id=prompt('Entre l\'ID de la partie diffusée (format g-xxxxxx) :','');
+  if(!id)return;
+  id=id.trim().toLowerCase();
+  // Accepte aussi une URL complète
+  var m=id.match(/g-[a-z0-9]{4,12}/);
+  if(m)id=m[0];
+  if(!/^g-[a-z0-9]{4,12}$/.test(id)){alert('Format invalide. Attendu : g-xxxxxx');return;}
+  if(!initFirebase()){alert('⚠️ Firebase non disponible');return;}
+  var doFetch=function(){
+    fbDb.ref('games/'+id).once('value').then(function(snap){
+      var data=snap.val();
+      if(!data){alert('❌ Aucune partie trouvée pour l\'ID '+id+'.');return;}
+      recoverLiveGameConfirm(id,data);
+    }).catch(function(e){alert('❌ Erreur : '+e.message);});
+  };
+  if(fbReady)doFetch();
+  else waitForAuth(5000).then(doFetch).catch(function(){alert('Impossible de se connecter à Firebase');});
+}
+function recoverLiveGameConfirm(liveId,snap){
+  var dt=snap.updatedAt?new Date(snap.updatedAt).toLocaleString('fr-FR'):'inconnue';
+  var lines=[];
+  lines.push('Parcours : '+(snap.courseName||'?'));
+  lines.push('Format : '+(snap.gameTypeLabel||snap.gameType||'?'));
+  lines.push('Joueurs : '+((snap.players||[]).map(function(p){return p.name;}).join(', ')||'?'));
+  lines.push('Trou en cours : '+((snap.currentHole||0)+1)+' / '+((snap.holes||[]).length||18));
+  lines.push('Dernière MAJ : '+dt);
+  if(!confirm('📡 Récupérer cette partie ?\n\n'+lines.join('\n')+'\n\nLa partie sera ajoutée à ton historique (éditable via Corriger).'))return;
+  recoverLiveGameDo(liveId,snap);
+}
+function recoverLiveGameDo(liveId,snap){
+  // 1. Parcours : retrouver par nom ou créer
+  var courseName=snap.courseName||'Parcours récupéré';
+  var course=DB.courses.find(function(c){return _normKey(c.name)===_normKey(courseName);});
+  if(!course){
+    course={id:gid(),name:courseName,holes:(snap.holes||[]).map(function(h){return {par:h.par||4,handicap:h.handicap||0,distance:h.distance||0};})};
+    if(course.holes.length===0)course.holes=defHoles();
+    DB.courses.push(course);
+  }
+  // 2. Joueurs : retrouver par nom ou créer
+  var playerIds=(snap.players||[]).map(function(sp){
+    var existing=DB.players.find(function(p){return _normKey(p.name)===_normKey(sp.name);});
+    if(existing){
+      // Met à jour l'index si absent
+      if(!existing.index&&sp.index)existing.index=sp.index;
+      return existing.id;
+    }
+    var np={id:gid(),name:sp.name||'Joueur',index:sp.index||54};
+    DB.players.push(np);return np.id;
+  });
+  // 3. Reconstruire la partie
+  var game={
+    id:gid(),
+    courseId:course.id,
+    playerIds:playerIds,
+    gameType:snap.gameType||'strokeplay',
+    tee:snap.tee||'jaune',
+    useHandicap:!!snap.useHandicap,
+    useTeams:!!(snap.teams),
+    teamNames:snap.teams&&snap.teams.names?snap.teams.names:['Équipe A','Équipe B'],
+    teamAssign:snap.teams&&snap.teams.assign?snap.teams.assign:{},
+    fourballMode:snap.fourballMode||null,
+    dbbHcpMode:snap.dbbHcpMode||null,
+    currentHole:snap.currentHole||0,
+    scores:(snap.scores||[]).map(function(row){return (row||[]).map(function(v){return v||0;});}),
+    startedAt:snap.startedAt||Date.now(),
+    finishedAt:Date.now(),
+    recoveredFromLive:liveId
+  };
+  // Complète scores si taille incohérente
+  var nH=course.holes.length;
+  while(game.scores.length<nH)game.scores.push(playerIds.map(function(){return 0;}));
+  // 4. Ajoute à l'historique
+  DB.history.push(game);
+  save();
+  alert('✅ Partie récupérée et ajoutée à l\'historique.\n\n'+
+        (playerIds.length?'Joueurs : '+playerIds.map(function(id){var p=pById(id);return p?p.name:'?';}).join(', ')+'\n':'')+
+        'Tu peux corriger les scores via le bouton ✏️ Corriger.');
+  S.histViewIdx=DB.history.length-1;
+  go('results');
+}
 function stopArchivedBroadcast(histIdx){
   const g=DB.history[histIdx];if(!g||!g.liveId)return;
   const lid=g.liveId;
@@ -8017,6 +8098,7 @@ function history(){
     ${DB.history.length>0?`<button class="ha" style="font-size:13px;font-weight:700;color:${selMode?'var(--red)':'var(--g)'}" onclick="S.histSelMode=!S.histSelMode;S.histSel=new Set();render()">${selMode?'Annuler':'Sélect.'}</button>`:''}
   </div>
   <div class="content an">
+    ${!selMode?`<button class="btn bo mb8" onclick="recoverLiveGamePrompt()">📡 Récupérer une partie diffusée</button>`:''}
     ${DB.history.length===0?`<div class="empty"><div class="ei">📊</div>Aucune partie</div>`:
     reversed.map((g,ri)=>{const course=cById(g.courseId);const pls=g.playerIds.map(id=>pById(id)).filter(Boolean);
       const date=new Date(g.startedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
