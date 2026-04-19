@@ -4703,9 +4703,25 @@ function players(){
     </div>
   </div>`;
   const favs=DB.players.filter(p=>p.fav);const others=DB.players.filter(p=>!p.fav);
+  const me=getMePlayer();
+  const meBanner=DB.players.length>0?(me
+    ?`<div class="card" style="background:#f0fdf4;border-left:4px solid #16a34a;padding:10px 12px;margin-bottom:10px">
+        <div class="f fc g8"><div style="font-size:20px">🙋</div>
+          <div style="flex:1"><div class="fw7 f13">Moi : <span style="color:#16a34a">${esc(me.name)}</span></div>
+          <div class="f11 tm">Utilisé pour filtrer tes distances et tes stats personnelles sur ce téléphone.</div></div>
+          <button class="btn bsm bo mb0" onclick="ls('gm_me','');render()">Changer</button>
+        </div>
+      </div>`
+    :`<div class="card" style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 12px;margin-bottom:10px">
+        <div class="f fc g8"><div style="font-size:20px">👋</div>
+          <div style="flex:1"><div class="fw7 f13">Qui êtes-vous ?</div>
+          <div class="f11 tm">Désigne ton profil (bouton 🙋 à droite de ton nom) pour filtrer tes distances et stats.</div></div>
+        </div>
+      </div>`):'';
   return`
   <div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>Mes joueurs</h1></div>
   <div class="content an">
+    ${meBanner}
     <button class="btn bp" onclick="openAddPl()">+ Ajouter un joueur</button>
     ${DB.players.length===0?`<div class="empty"><div class="ei">👤</div>Aucun joueur</div>`:
       (favs.length?`<div class="sec-lbl">⭐ Favoris</div>`+favs.map((p,i)=>row(p,DB.players.indexOf(p)))
@@ -4870,6 +4886,8 @@ function showGlobalPlayerModal(playerId){
 // Hook : push les manches des joueurs globaux à la fin d'une partie
 function pushRoundForAllGlobalPlayers(game){
   if(!game||!game.playerIds||!fbReady)return;
+  // Ne pas pousser les formats à score partagé (scramble/foursome/patsome)
+  if(['scramble','foursome','patsome'].includes(game.gameType))return;
   game.playerIds.forEach((pid,idx)=>{
     var p=pById(pid);
     if(p&&p.globalCode){
@@ -8073,8 +8091,12 @@ function fetchGlobalPlayerData(code,forceRefresh){
   );
 }
 // Normalise une manche (local ou globale) pour calculs stats unifiés
+// Formats où le score est partagé en équipe (pas pertinent en stats individuelles)
+const TEAM_SCORE_GAMETYPES=['scramble','foursome','patsome'];
+function isTeamScoreGame(g){return g&&TEAM_SCORE_GAMETYPES.includes(g.gameType);}
 function normalizeRound(source,playerId,g,code){
   if(source==='local'){
+    if(isTeamScoreGame(g))return null; // exclut scramble/foursome/patsome
     const pi=g.playerIds.indexOf(playerId);
     if(pi<0)return null;
     const course=cById(g.courseId);
@@ -8089,6 +8111,8 @@ function normalizeRound(source,playerId,g,code){
       scores:scoresForP,strokes
     };
   }
+  // Global : exclure aussi si gameType d'équipe présent dans la manche
+  if(g&&g.gameType&&TEAM_SCORE_GAMETYPES.includes(g.gameType))return null;
   // Global : déjà un objet r
   const strokes=(g.scores||[]).map((_,hi)=>{
     // Approximation : utilise le playerIndex stocké (ou 0 si non dispo)
@@ -8232,6 +8256,7 @@ function statsView(){
       </div>
       ${!hasGlobalCode?`<div class="f11 tm mt8">💡 Pour voir les stats globales, crée un code joueur dans la fiche de ${esc(p.name)}.</div>`:''}
       ${hasGlobalCode&&source!=='local'&&S._statsLoading?`<div class="f11 tm mt8">⏳ Chargement des stats globales…</div>`:''}
+      <div class="f11 tm mt8" style="padding:6px;background:#f8fafc;border-radius:6px">ℹ️ Les formats à score d'équipe (scramble, foursome, patsome) sont exclus — le score n'est pas individuel.</div>
     </div>
 
     <div class="st">${p.name}${source==='local'?' · Local':source==='global'?' · Global':' · Local + Global'}</div>
