@@ -4675,14 +4675,25 @@ function saveC(){
 }
 
 // ══ PLAYERS ═══════════════════════════════════════════════════════════════
+function toggleMePlayer(id){
+  // Si ce joueur est déjà "moi", on retire ; sinon on le définit comme "moi"
+  if(lg('gm_me','')===id){ls('gm_me','');}
+  else ls('gm_me',id);
+  render();
+}
+function getMePlayerId(){return lg('gm_me','')||null;}
+function getMePlayer(){var id=getMePlayerId();return id?pById(id):null;}
+
 function players(){
-  const row=(p,i)=>`<div class="li">
+  const meId=getMePlayerId();
+  const row=(p,i)=>`<div class="li" ${meId===p.id?'style="background:#f0fdf4;border-left:3px solid #16a34a"':''}>
     <button class="fav-btn" onclick="event.stopPropagation();favP('${p.id}')">${p.fav?'⭐':'☆'}</button>
     <div class="f fc g12" style="flex:1">
       <div class="av" style="background:${gc(i)};color:#fff">${ini(p.name)}</div>
-      <div><div class="lit">${esc(p.name)} ${p.globalCode?'<span class="badge bg" style="background:#0891b2;color:#fff;font-size:10px;margin-left:4px">🆔</span>':''}</div><div class="lis">Index : ${p.index} · HdJ : ${hdj(p.index,null)}</div></div>
+      <div><div class="lit">${esc(p.name)} ${meId===p.id?'<span class="badge bg" style="background:#16a34a;color:#fff;font-size:10px;margin-left:4px">🙋 MOI</span>':''}${p.globalCode?'<span class="badge bg" style="background:#0891b2;color:#fff;font-size:10px;margin-left:4px">🆔</span>':''}</div><div class="lis">Index : ${p.index} · HdJ : ${hdj(p.index,null)}</div></div>
     </div>
     <div class="f g8">
+      <button class="btn ${meId===p.id?'bp':'bo'} bxs" onclick="toggleMePlayer('${p.id}')" title="${meId===p.id?'Retirer':'Me désigner'}">🙋</button>
       <button class="btn bo bxs" onclick="showGlobalPlayerModal('${p.id}')" title="Code global">${p.globalCode?'🔗':'🆔'}</button>
       <button class="btn bo bxs" onclick="openEditPl('${p.id}')">✏️</button>
       <button class="btn bd bxs" onclick="delPl('${p.id}')">🗑</button>
@@ -5013,25 +5024,55 @@ function computeAdjusted(dist,tempC,wind,dir,humidity){
 }
 
 function clubsView(){
-  var players=DB.players;
-  if(!S.clubsPlayerId&&players.length)S.clubsPlayerId=players[0].id;
-  var p=players.find(pl=>pl.id===S.clubsPlayerId);
-  return`<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>🎯 Mes distances par club</h1></div>
+  var me=getMePlayer();
+  // Si aucun joueur "moi" défini, proposer d'en choisir un
+  if(!me){
+    return`<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>🎯 Mes distances par club</h1></div>
+    <div class="content an">
+      <div class="card" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-left:4px solid #d97706">
+        <div class="f fc g8">
+          <div style="font-size:32px">🙋</div>
+          <div style="flex:1">
+            <div class="fw8 f14">Qui es-tu ?</div>
+            <div class="f12 tm" style="margin-top:4px">Pour voir <b>tes</b> distances, désigne-toi parmi les joueurs enregistrés. Les distances sont personnelles, on ne mélange pas.</div>
+          </div>
+        </div>
+      </div>
+      ${DB.players.length===0?`<div class="empty"><div class="ei">👤</div>Ajoute d'abord au moins un joueur<br><button class="btn bp mt8" onclick="go('players')">Gérer les joueurs</button></div>`:`
+      <div class="st">Choisis qui tu es</div>
+      <div class="card">
+        ${DB.players.map((pl,i)=>`<div class="sr" style="padding:10px 0;border-bottom:1px solid #f0f0f0">
+          <div class="f fc g8" style="flex:1">
+            <div class="av avs" style="background:${gc(i)};color:#fff">${ini(pl.name)}</div>
+            <div><div class="fw7 f13">${esc(pl.name)}</div><div class="f11 tm">Index ${pl.index}</div></div>
+          </div>
+          <button class="btn bp bsm mb0" onclick="toggleMePlayer('${pl.id}')">🙋 C'est moi</button>
+        </div>`).join('')}
+      </div>
+      `}
+    </div>`;
+  }
+  // "Moi" est défini → vue filtrée
+  S.clubsPlayerId=me.id;
+  var p=me;
+  return`<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>🎯 Mes distances</h1>
+    <button class="ha" onclick="toggleMePlayer('${p.id}')" title="Changer d'identité" style="font-size:14px">🔄</button>
+  </div>
   <div class="content an">
-    ${players.length===0?`<div class="empty"><div class="ei">👤</div>Ajoute d'abord au moins un joueur<br><button class="btn bp mt8" onclick="go('players')">Gérer les joueurs</button></div>`:`
-    <div class="card"><div class="ct">Joueur</div>
-      <div class="f g8" style="flex-wrap:wrap">
-        ${players.map(pl=>`<button class="btn bsm mb0 ${S.clubsPlayerId===pl.id?'bp':'bo'}" onclick="S.clubsPlayerId='${pl.id}';render()">${esc(pl.name)}</button>`).join('')}
+    <div class="card" style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff">
+      <div class="f fc g8"><div style="font-size:28px">🙋</div>
+        <div style="flex:1"><div class="fw8 f14">${esc(p.name)}</div><div class="f12" style="opacity:.9">Index ${p.index} · HdJ ${hdj(p.index,null)} ${p.globalCode?'· 🆔 global':''}</div></div>
       </div>
     </div>
-    ${p?`
     <button class="btn mb0 mt8" style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;font-size:16px;padding:16px" onclick="go('clubsAdvisor')">🎯 Quel club jouer ?</button>
     <div class="rb mt8">
       <button class="btn bp mb0" style="flex:1" onclick="go('clubsEdit')">✏️ Éditer mes distances</button>
       <button class="btn mb0" style="flex:1;background:linear-gradient(135deg,#0891b2,#06b6d4);color:#fff;border:none" onclick="go('clubsCalc')">🌡️ Calculateur météo</button>
     </div>
     ${renderClubsTable(p,false)}
-    `:''}`}
+    <div class="f11 tm mt8" style="padding:10px;background:#f8fafc;border-radius:10px">
+      💡 Ces distances sont propres à <b>toi</b>. Pour changer d'identité, clique sur 🔄 en haut.
+    </div>
   </div>`;
 }
 
@@ -5086,7 +5127,7 @@ function renderClubsTable(p,showAdjusted){
 }
 
 function clubsEditView(){
-  var p=DB.players.find(pl=>pl.id===S.clubsPlayerId);
+  var p=getMePlayer()||DB.players.find(pl=>pl.id===S.clubsPlayerId);
   if(!p)return clubsView();
   var clubs=getPlayerClubs(p);
   if(S.clubsEditMode==null)S.clubsEditMode=false;
@@ -5255,10 +5296,57 @@ function resetClubs(pid){
 // Accès rapide advisor depuis la partie (auto-sélection joueur + retour)
 function openAdvisorFromGame(){
   if(DB.game&&DB.game.playerIds&&DB.game.playerIds.length){
-    S.clubsPlayerId=DB.game.playerIds[0];
+    var me=getMePlayer();
+    // Utilise "moi" si c'est l'un des joueurs de la partie
+    S.clubsPlayerId=(me&&DB.game.playerIds.includes(me.id))?me.id:DB.game.playerIds[0];
   }
   S.advisorReturnTo='playing';
+  // Charge auto la météo live du parcours si en partie
+  fetchLiveWeatherForCurrentGame();
   go('clubsAdvisor');
+}
+
+// ══ 🌡️ MÉTÉO LIVE DU PARCOURS (open-meteo) ═══════════════════════════════
+var _wxCache={};// {courseId: {data, fetchedAt}}
+function fetchLiveWeatherForCourse(course){
+  if(!course)return Promise.reject(new Error('no course'));
+  var cached=_wxCache[course.id];
+  if(cached&&(Date.now()-cached.fetchedAt<15*60000)){
+    return Promise.resolve(cached.data);
+  }
+  if(!navigator.onLine)return Promise.reject(new Error('offline'));
+  var geo=courseGeo(course.name);
+  if(!geo)return Promise.reject(new Error('no GPS coord'));
+  var url='https://api.open-meteo.com/v1/forecast?latitude='+geo[0]+'&longitude='+geo[1]+'&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&timezone=auto';
+  return fetch(url).then(r=>{if(!r.ok)throw new Error(r.status);return r.json();}).then(d=>{
+    var c=d.current;
+    var data={
+      temp:Math.round(c.temperature_2m),
+      humidity:Math.round(c.relative_humidity_2m),
+      windKmh:Math.round(c.wind_speed_10m),
+      windDirDeg:Math.round(c.wind_direction_10m),
+      fetchedAt:Date.now(),
+      courseName:course.name
+    };
+    _wxCache[course.id]={data,fetchedAt:Date.now()};
+    return data;
+  });
+}
+function fetchLiveWeatherForCurrentGame(){
+  if(!DB.game)return;
+  var course=cById(DB.game.courseId);
+  if(!course)return;
+  fetchLiveWeatherForCourse(course).then(wx=>{
+    // Auto-remplit les conditions du jour et le vent
+    if(!DB.roundConditions)DB.roundConditions={};
+    DB.roundConditions.temp=wx.temp;
+    DB.roundConditions.humidity=wx.humidity;
+    DB.roundConditions.liveWx=wx;
+    S.advWind=wx.windKmh;
+    // Note : on ne définit pas automatiquement face/portant/travers car ça dépend de l'orientation du trou
+    save();
+    if(S.view==='clubsAdvisor'||S.view==='playing')render();
+  }).catch(e=>{console.warn('Weather fetch failed:',e.message);});
 }
 
 // ══ CLUB ADVISOR : recommande le bon club pour un coup ═══════════════════
@@ -5291,7 +5379,12 @@ function shotConfidence(shotKey,diffMeters){
 }
 
 function clubsAdvisorView(){
-  var p=DB.players.find(pl=>pl.id===S.clubsPlayerId);
+  // Si accès depuis la partie, permettre sélection (plusieurs joueurs) ; sinon, utiliser "moi"
+  var backTarget2=S.advisorReturnTo||'clubs';
+  var inGame2=backTarget2==='playing'&&DB.game;
+  var p;
+  if(inGame2){p=DB.players.find(pl=>pl.id===S.clubsPlayerId);}
+  else{p=getMePlayer()||DB.players.find(pl=>pl.id===S.clubsPlayerId);}
   if(!p)return clubsView();
   // Conditions du jour (persistées dans DB)
   if(!DB.roundConditions)DB.roundConditions={temp:20,humidity:50};
@@ -5400,24 +5493,25 @@ function clubsAdvisorView(){
     <!-- Conditions du jour -->
     <div class="card" style="background:#f0fdf4;border-left:4px solid #16a34a">
       <div class="f fc g8 mb0" style="margin-bottom:10px">
-        <div style="font-size:22px">☀️</div>
+        <div style="font-size:22px">${DB.roundConditions?.liveWx?'🌐':'☀️'}</div>
         <div style="flex:1">
-          <div class="fw7 f13">Conditions du jour</div>
-          <div class="f11 tm">🌡️ ${temp}°C · 💧 ${hum}% d'humidité</div>
+          <div class="fw7 f13">Conditions du jour ${DB.roundConditions?.liveWx?'<span class="badge bg" style="background:#16a34a;color:#fff;font-size:9px;margin-left:4px">LIVE</span>':''}</div>
+          <div class="f11 tm">🌡️ ${temp}°C · 💧 ${hum}% d'humidité${DB.roundConditions?.liveWx?'<br>📡 Live depuis '+esc(DB.roundConditions.liveWx.courseName)+' · '+new Date(DB.roundConditions.liveWx.fetchedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):''}</div>
         </div>
         <button class="btn bxs bo mb0" onclick="S.advEditConditions=!S.advEditConditions;render()">${S.advEditConditions?'✅':'✏️'}</button>
       </div>
       ${S.advEditConditions?`
       <div class="f g8 mt8">
         <div class="fg mb0" style="flex:1"><label class="lbl">Température (°C)</label>
-          <input type="number" class="inp" value="${temp}" min="-10" max="45" onchange="DB.roundConditions.temp=parseInt(this.value)||20;save()">
+          <input type="number" class="inp" value="${temp}" min="-10" max="45" onchange="DB.roundConditions.temp=parseInt(this.value)||20;delete DB.roundConditions.liveWx;save()">
         </div>
         <div class="fg mb0" style="flex:1"><label class="lbl">Humidité (%)</label>
-          <input type="number" class="inp" value="${hum}" min="0" max="100" onchange="DB.roundConditions.humidity=parseInt(this.value)||50;save()">
+          <input type="number" class="inp" value="${hum}" min="0" max="100" onchange="DB.roundConditions.humidity=parseInt(this.value)||50;delete DB.roundConditions.liveWx;save()">
         </div>
       </div>
       <div class="f11 tm mt8">💡 Conditions gardées en mémoire jusqu'à modification.</div>
       `:''}
+      ${inGame2?`<button class="btn bsm bg2 mt8" onclick="fetchLiveWeatherForCurrentGame()">🌐 Actualiser météo live du parcours</button>`:''}
     </div>
 
     <!-- Options d'affichage -->
@@ -5520,7 +5614,7 @@ function clubsAdvisorView(){
 }
 
 function clubsCalcView(){
-  var p=DB.players.find(pl=>pl.id===S.clubsPlayerId);
+  var p=getMePlayer()||DB.players.find(pl=>pl.id===S.clubsPlayerId);
   if(!p)return clubsView();
   if(S.calcTemp==null)S.calcTemp=20;
   if(S.calcWind==null)S.calcWind=0;
@@ -5961,7 +6055,10 @@ function launchGame(){
     championshipId:s.championshipId||null,
     matchState:ms,chouetteState:cs,loupState:ls,skinsState:sk,nassauState:ns,
     neufptsState:np,bbbState:bbs,dbbState:dbs,vegasState:vs};
-  save();go('playing');
+  save();
+  // Pré-fetch météo live du parcours en arrière-plan
+  try{fetchLiveWeatherForCurrentGame();}catch(e){}
+  go('playing');
 }
 // ══ SHARE / WHATSAPP ══════════════════════════════════════════════════════
 function buildShareText(g,pls,course){
