@@ -9155,17 +9155,21 @@ function shareGCN(){
 
 // ── Export / Import données ──
 // Catégories de sauvegarde (clés DB + libellés)
+// defaultOn: par défaut inclus dans la sauvegarde cloud lors de la première activation.
+// On exclut par défaut ce qui est propre à l'appareil (liens perso, partie en cours)
+// pour éviter d'écraser les préférences locales d'un autre téléphone.
 var BACKUP_CATS=[
-  {key:'courses',label:'Parcours',emoji:'⛳',count:function(){return (DB.courses||[]).length}},
-  {key:'players',label:'Joueurs',emoji:'👥',count:function(){return (DB.players||[]).length}},
-  {key:'history',label:'Historique des parties',emoji:'📊',count:function(){return (DB.history||[]).length}},
-  {key:'championships',label:'Championnats',emoji:'🏆',count:function(){return (DB.championships||[]).length}},
-  {key:'favGames',label:'Parties favorites',emoji:'⭐',count:function(){return (DB.favGames||[]).length}},
-  {key:'game',label:'Partie en cours',emoji:'🎯',count:function(){return DB.game?1:0}},
-  {key:'customShopLinks',label:'Boutiques perso',emoji:'🛍️',count:function(){return (DB.customShopLinks||[]).length}},
-  {key:'customAppLinks',label:'Applis perso',emoji:'📱',count:function(){return (DB.customAppLinks||[]).length}},
-  {key:'customCompLinks',label:'Compétitions perso',emoji:'🏅',count:function(){return (DB.customCompLinks||[]).length}},
-  {key:'customWazeDest',label:'Destinations Waze perso',emoji:'🚗',count:function(){return (DB.customWazeDest||[]).length}}
+  {key:'courses',label:'Parcours',emoji:'⛳',defaultOn:true,count:function(){return (DB.courses||[]).length}},
+  {key:'players',label:'Joueurs (+ distances clubs)',emoji:'👥',defaultOn:true,count:function(){return (DB.players||[]).length}},
+  {key:'history',label:'Historique des parties',emoji:'📊',defaultOn:true,count:function(){return (DB.history||[]).length}},
+  {key:'championships',label:'Championnats',emoji:'🏆',defaultOn:true,count:function(){return (DB.championships||[]).length}},
+  {key:'favGames',label:'Parties favorites',emoji:'⭐',defaultOn:true,count:function(){return (DB.favGames||[]).length}},
+  {key:'practice',label:'Séances practice',emoji:'🎯',defaultOn:true,count:function(){return (DB.practice||[]).length}},
+  {key:'game',label:'Partie en cours',emoji:'▶️',defaultOn:false,count:function(){return DB.game?1:0}},
+  {key:'customShopLinks',label:'Boutiques perso',emoji:'🛍️',defaultOn:false,count:function(){return (DB.customShopLinks||[]).length}},
+  {key:'customAppLinks',label:'Applis perso',emoji:'📱',defaultOn:false,count:function(){return (DB.customAppLinks||[]).length}},
+  {key:'customCompLinks',label:'Compétitions perso',emoji:'🏅',defaultOn:false,count:function(){return (DB.customCompLinks||[]).length}},
+  {key:'customWazeDest',label:'Destinations Waze perso',emoji:'🚗',defaultOn:false,count:function(){return (DB.customWazeDest||[]).length}}
 ];
 
 // ══ ☁️ CLOUD BACKUP (Firebase) ════════════════════════════════════════════
@@ -9183,7 +9187,7 @@ function cloudActivate(){
   if(!DB.cloudBackup.code)DB.cloudBackup.code=cloudGenCode();
   if(!DB.cloudBackup.categories){
     DB.cloudBackup.categories={};
-    BACKUP_CATS.forEach(c=>{DB.cloudBackup.categories[c.key]=true;});
+    BACKUP_CATS.forEach(c=>{DB.cloudBackup.categories[c.key]=c.defaultOn!==false;});
   }
   DB.cloudBackup.enabled=true;
   DB.cloudBackup.lastSync=null;
