@@ -827,7 +827,7 @@ function defHoles(){
 let S={view:DB.game?'playing':'home',setup:{},ec:null,tab:0,rulesGame:null};window.S=S;
 
 // ══ RENDER ════════════════════════════════════════════════════════════════
-const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView,clubs:clubsView,clubsEdit:clubsEditView,clubsCalc:clubsCalcView,clubsAdvisor:clubsAdvisorView,petitJeu:petitJeuView,clubsChipEdit:clubsChipEditView,allGlobalPlayers:allGlobalPlayersView};
+const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,trainingStats:trainingStatsView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView,clubs:clubsView,clubsEdit:clubsEditView,clubsCalc:clubsCalcView,clubsAdvisor:clubsAdvisorView,petitJeu:petitJeuView,clubsChipEdit:clubsChipEditView,allGlobalPlayers:allGlobalPlayersView};
 const APP_FOOTER='<div style="text-align:center;padding:18px 0 10px;color:#94a3b8;font-size:12px" ondblclick="activateSuperAdmin()">⛳ Ça Swingue Manager <b>v14</b> · © 2026 Virnaoned</div>';
 function render(){
   const f=VIEWS[S.view];
@@ -9402,6 +9402,13 @@ function achievementsView(){
 
 // ══ PRACTICE / ENTRAÎNEMENT ═══════════════════════════════════════════════
 // ══ 🎯 SUIVI D'ENTRAÎNEMENT ═══════════════════════════════════════════════
+var TRAINING_PRESETS=[
+  {key:'practice30',icon:'🏌️',label:'Practice 30 min',type:'practice',duration:30,focuses:['Tempo','Distance control']},
+  {key:'practice60',icon:'🏌️',label:'Practice 1h',type:'practice',duration:60,focuses:['Tempo','Distance control','Plan de swing']},
+  {key:'putting20',icon:'🟢',label:'Putting 20 min',type:'putting',duration:20,focuses:['Putting ligne','Putting vitesse']},
+  {key:'chipping20',icon:'🪶',label:'Chipping 20 min',type:'chipping',duration:20,focuses:['Chipping roulé','Chipping lobé']},
+  {key:'routine',icon:'🎯',label:'Routine pré-départ',type:'practice',duration:30,focuses:['Tempo','Routine','Mental']}
+];
 var TRAINING_TYPES=[
   {key:'practice',icon:'🏌️',label:'Practice',color:'#16a34a'},
   {key:'putting',icon:'🟢',label:'Putting',color:'#059669'},
@@ -9417,15 +9424,186 @@ var TRAINING_FOCUSES=[
 ];
 function trainingTypeInfo(key){return TRAINING_TYPES.find(t=>t.key===key)||{icon:'🎯',label:key||'Session',color:'#64748b'};}
 
+// ── Stats & helpers ──
+function _dayKey(ts){var d=new Date(ts);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
+function _weekKey(ts){ // ISO week Monday
+  var d=new Date(ts);d.setHours(0,0,0,0);
+  var day=(d.getDay()+6)%7; // 0=Mon
+  d.setDate(d.getDate()-day);
+  return d.getFullYear()+'-W'+d.toISOString().slice(5,10);
+}
+function _startOfWeek(d){var r=new Date(d);r.setHours(0,0,0,0);var day=(r.getDay()+6)%7;r.setDate(r.getDate()-day);return r;}
+function computeStreak(practice){
+  if(!practice||!practice.length)return 0;
+  var days=new Set(practice.map(s=>_dayKey(s.date)));
+  var today=new Date();today.setHours(0,0,0,0);
+  var start=new Date(today);
+  if(!days.has(_dayKey(start.getTime())))start.setDate(start.getDate()-1);
+  var streak=0;
+  var d=new Date(start);
+  while(days.has(_dayKey(d.getTime()))){streak++;d.setDate(d.getDate()-1);}
+  return streak;
+}
+function computeMaxStreak(practice){
+  if(!practice||!practice.length)return 0;
+  var days=[...new Set(practice.map(s=>_dayKey(s.date)))].map(k=>{var p=k.split('-');return new Date(+p[0],+p[1]-1,+p[2]).getTime();}).sort((a,b)=>a-b);
+  var max=1,cur=1;
+  for(var i=1;i<days.length;i++){
+    var diff=(days[i]-days[i-1])/(24*3600*1000);
+    if(diff===1){cur++;if(cur>max)max=cur;}else cur=1;
+  }
+  return days.length?max:0;
+}
+function trainingWeekProgress(){
+  var goal=(DB.trainingGoal&&DB.trainingGoal.weekly)||3;
+  var weekStart=_startOfWeek(new Date()).getTime();
+  var count=(DB.practice||[]).filter(s=>s.date>=weekStart).length;
+  return {goal:goal,count:count,pct:Math.min(100,Math.round(count/goal*100))};
+}
+function setWeeklyGoal(){
+  var cur=(DB.trainingGoal&&DB.trainingGoal.weekly)||3;
+  var v=prompt('Objectif de sessions par semaine (1-14) :',cur);
+  if(!v)return;
+  var n=parseInt(v);
+  if(isNaN(n)||n<1||n>14){alert('Valeur 1-14');return;}
+  if(!DB.trainingGoal)DB.trainingGoal={};
+  DB.trainingGoal.weekly=n;save();render();
+}
+function computeTrainingAgg(days){
+  var now=Date.now(),limit=now-days*24*3600*1000;
+  var list=(DB.practice||[]).filter(s=>s.date>=limit);
+  var totalMin=list.reduce((s,x)=>s+(parseInt(x.duration)||0),0);
+  var byType={};list.forEach(s=>{byType[s.type]=(byType[s.type]||0)+(parseInt(s.duration)||0);});
+  var focusCount={};list.forEach(s=>{(s.focuses||[]).forEach(f=>{focusCount[f]=(focusCount[f]||0)+1;});});
+  var topFocuses=Object.entries(focusCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  var ratingSum=0,ratingN=0;list.forEach(s=>{if(s.rating){ratingSum+=s.rating;ratingN++;}});
+  var avgRating=ratingN?Math.round((ratingSum/ratingN)*10)/10:null;
+  // Putting aggregation
+  var pt={shortMade:0,shortTried:0,medMade:0,medTried:0,longMade:0,longTried:0};
+  list.filter(s=>s.type==='putting'&&s.counters).forEach(s=>{
+    ['shortMade','shortTried','medMade','medTried','longMade','longTried'].forEach(k=>{pt[k]+=(s.counters[k]||0);});
+  });
+  return {n:list.length,totalMin:totalMin,byType:byType,topFocuses:topFocuses,avgRating:avgRating,putting:pt};
+}
+// Ratings par semaine pour sparkline (8 dernières semaines)
+function trainingRatingWeeks(){
+  var weeks=[];
+  var ws=_startOfWeek(new Date());
+  for(var i=7;i>=0;i--){
+    var w=new Date(ws);w.setDate(w.getDate()-i*7);
+    var wNext=new Date(w);wNext.setDate(wNext.getDate()+7);
+    var list=(DB.practice||[]).filter(s=>s.date>=w.getTime()&&s.date<wNext.getTime()&&s.rating);
+    var avg=list.length?list.reduce((s,x)=>s+x.rating,0)/list.length:null;
+    weeks.push({start:w.getTime(),avg:avg,n:list.length});
+  }
+  return weeks;
+}
+// Export CSV des sessions
+function exportTrainingCSV(){
+  if(!DB.practice||!DB.practice.length){alert('Aucune session à exporter');return;}
+  var rows=[['Date','Type','Durée (min)','Lieu','Ressenti','Focus','Notes']];
+  DB.practice.slice().sort((a,b)=>a.date-b.date).forEach(s=>{
+    rows.push([
+      new Date(s.date).toISOString().slice(0,10),
+      trainingTypeInfo(s.type).label,
+      s.duration||'',
+      s.location||'',
+      s.rating||'',
+      (s.focuses||[]).join(' | '),
+      (s.notes||'').replace(/\n/g,' ')
+    ]);
+  });
+  var csv='\ufeff'+rows.map(r=>r.map(c=>{var s=String(c);return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s.replace(/"/g,'""')+'"':s;}).join(',')).join('\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download='entrainement_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),100);
+}
+function usePreset(key){
+  var pr=TRAINING_PRESETS.find(x=>x.key===key);if(!pr)return;
+  S._trainForm={
+    id:'s'+Date.now(),date:Date.now(),type:pr.type,duration:pr.duration,
+    location:'',rating:0,focuses:(pr.focuses||[]).slice(),counters:{},notes:'',_idx:null
+  };
+  renderTrainingModal();
+}
+// Vue stats agrégées
+function trainingStatsView(){
+  if(!S._trainStatsPeriod)S._trainStatsPeriod=180;
+  var p=S._trainStatsPeriod;
+  var a=computeTrainingAgg(p);
+  var periodLbl=p===30?'30 jours':p===90?'90 jours':p===180?'6 mois':'1 an';
+  var rateWeeks=trainingRatingWeeks();
+  var maxAvg=5;
+  return `<div class="hdr"><button class="back" onclick="go('practice')">‹</button><h1>📊 Stats entraînement</h1></div>
+  <div class="content an">
+    <div class="card" style="padding:10px">
+      <div class="ct">Période</div>
+      <div class="f g8 mt8">
+        ${[30,90,180,365].map(d=>`<button class="btn bsm mb0" style="flex:1;${S._trainStatsPeriod===d?'':'background:#fff;color:#475569;border:1px solid #cbd5e1'}" onclick="S._trainStatsPeriod=${d};render()">${d===30?'30j':d===90?'90j':d===180?'6m':'1an'}</button>`).join('')}
+      </div>
+    </div>
+    <div class="st">${periodLbl}</div>
+    <div class="f g8 mb8" style="flex-wrap:wrap">
+      <div class="card" style="flex:1 1 30%;padding:10px;margin:0"><div class="f11 tm">Sessions</div><div class="fw8 f18">${a.n}</div></div>
+      <div class="card" style="flex:1 1 30%;padding:10px;margin:0"><div class="f11 tm">Durée</div><div class="fw8 f18">${Math.floor(a.totalMin/60)}h${(a.totalMin%60).toString().padStart(2,'0')}</div></div>
+      <div class="card" style="flex:1 1 30%;padding:10px;margin:0"><div class="f11 tm">Ressenti moy.</div><div class="fw8 f18">${a.avgRating?'⭐ '+a.avgRating:'—'}</div></div>
+    </div>
+    ${Object.keys(a.byType).length?`<div class="card" style="padding:10px">
+      <div class="ct">Temps par type</div>
+      ${TRAINING_TYPES.map(t=>{
+        var m=a.byType[t.key]||0;if(!m)return '';
+        var pct=Math.round(m/a.totalMin*100);
+        return `<div style="margin-top:8px"><div class="f11 tm">${t.icon} ${t.label} — ${Math.floor(m/60)}h${(m%60).toString().padStart(2,'0')} (${pct}%)</div>
+          <div style="height:8px;background:#f1f5f9;border-radius:4px;margin-top:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${t.color}"></div></div>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+    ${a.topFocuses.length?`<div class="card" style="padding:10px">
+      <div class="ct">Top focus travaillés</div>
+      ${a.topFocuses.map((f,i)=>`<div class="sr"><span>${i+1}. ${esc(f[0])}</span><span class="fw7">${f[1]}×</span></div>`).join('')}
+    </div>`:''}
+    ${rateWeeks.some(w=>w.avg)?`<div class="card" style="padding:10px">
+      <div class="ct">Ressenti moyen (8 dernières semaines)</div>
+      <div class="f g8 mt8" style="align-items:flex-end;height:80px">
+        ${rateWeeks.map(w=>{
+          var h=w.avg?Math.round((w.avg/maxAvg)*70):4;
+          var d=new Date(w.start);var lbl=d.getDate()+'/'+(d.getMonth()+1);
+          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="font-size:9px;color:#64748b">${w.avg?w.avg.toFixed(1):''}</div>
+            <div style="width:100%;max-width:24px;height:${h}px;background:${w.avg?'linear-gradient(180deg,#f59e0b,#d97706)':'#e2e8f0'};border-radius:4px 4px 0 0" title="${w.n} sessions"></div>
+            <div style="font-size:9px;color:#94a3b8">${lbl}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`:''}
+    ${(a.putting.shortTried+a.putting.medTried+a.putting.longTried)>0?`<div class="card" style="padding:10px">
+      <div class="ct">🟢 Putting — % rentrés</div>
+      ${[['Court (1-2m)','shortMade','shortTried','#16a34a'],['Moyen (3-6m)','medMade','medTried','#0891b2'],['Long (>6m)','longMade','longTried','#7c3aed']].map(function(r){
+        var m=a.putting[r[1]]||0,t=a.putting[r[2]]||0;
+        if(!t)return '';
+        var pct=Math.round(m/t*100);
+        return `<div style="margin-top:8px"><div class="f11 tm">${r[0]} — ${m}/${t} (${pct}%)</div>
+          <div style="height:10px;background:#f1f5f9;border-radius:5px;margin-top:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${r[3]}"></div></div>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+    <button class="btn bp mt8" onclick="exportTrainingCSV()">📥 Exporter en CSV</button>
+  </div>`;
+}
+
 function practiceView(){
   if(!DB.practice)DB.practice=[];
   var sorted=[...DB.practice].sort((a,b)=>b.date-a.date);
-  // Stats dashboard 30j
   var now=Date.now(),h30=30*24*3600*1000;
   var last30=DB.practice.filter(s=>s.date&&(now-s.date)<=h30);
   var totalMin=last30.reduce((s,x)=>s+(parseInt(x.duration)||0),0);
   var byType={};last30.forEach(s=>{byType[s.type]=(byType[s.type]||0)+1;});
   var lastDt=sorted[0]?new Date(sorted[0].date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):null;
+  var streak=computeStreak(DB.practice);
+  var maxStreak=computeMaxStreak(DB.practice);
+  var wp=trainingWeekProgress();
 
   return `<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>🎯 Suivi d'entraînement</h1>
     <button class="ha" onclick="openTrainingModal()">＋</button>
@@ -9437,8 +9615,34 @@ function practiceView(){
       </div>
     </div>
 
+    <!-- Série + objectif hebdo -->
+    <div class="f g8 mb8" style="flex-wrap:wrap">
+      <div class="card" style="flex:1 1 45%;padding:12px;margin:0;background:linear-gradient(135deg,#fef3c7,#fde68a);border-left:3px solid #d97706">
+        <div class="f11 tm">🔥 Série en cours</div>
+        <div class="fw8 f20" style="color:#92400e">${streak} ${streak>1?'jours':'jour'}</div>
+        <div class="f11 tm">Record : ${maxStreak} ${maxStreak>1?'jours':'jour'}</div>
+      </div>
+      <div class="card" style="flex:1 1 45%;padding:12px;margin:0;background:#faf5ff;border-left:3px solid #7c3aed;cursor:pointer" onclick="setWeeklyGoal()">
+        <div class="f11 tm">🎯 Objectif semaine</div>
+        <div class="fw8 f18" style="color:#7c3aed">${wp.count} / ${wp.goal}</div>
+        <div style="height:6px;background:#e2e8f0;border-radius:3px;margin-top:6px;overflow:hidden"><div style="height:100%;width:${wp.pct}%;background:${wp.pct>=100?'#16a34a':'#7c3aed'}"></div></div>
+      </div>
+    </div>
+
+    <!-- Modèles rapides -->
+    <div class="card" style="padding:10px">
+      <div class="ct">📋 Modèles rapides</div>
+      <div class="f g8 mt8" style="flex-wrap:wrap">
+        ${TRAINING_PRESETS.map(pr=>`<button class="btn bsm mb0" style="flex:1 1 45%;padding:8px;font-size:11px;background:#f8fafc;color:#334155;border:1px solid #cbd5e1" onclick="usePreset('${pr.key}')">${pr.icon} ${pr.label}</button>`).join('')}
+      </div>
+    </div>
+
+    <!-- Dashboard 30j -->
     <div class="card" style="padding:12px">
-      <div class="ct">📊 Dashboard — 30 jours</div>
+      <div class="f" style="justify-content:space-between;align-items:center">
+        <div class="ct" style="margin:0">📊 30 derniers jours</div>
+        <button class="btn bxs bo mb0" onclick="go('trainingStats')">Stats détaillées ›</button>
+      </div>
       <div class="f g8 mt8" style="flex-wrap:wrap">
         <div class="card" style="flex:1 1 30%;padding:10px;margin:0;background:#f0fdf4;border-left:3px solid #16a34a">
           <div class="f11 tm">Sessions</div><div class="fw8 f18" style="color:#16a34a">${last30.length}</div>
@@ -9460,12 +9664,18 @@ function practiceView(){
     </div>
 
     ${sorted.length===0?`<div class="empty"><div class="ei">🎯</div>Aucune session enregistrée<br><button class="btn bp mt8" onclick="openTrainingModal()">＋ Première session</button></div>`:
-    `<div class="st">Historique</div>`+sorted.map((s,ri)=>{
+    `<div class="st">Historique · clique pour modifier</div>`+sorted.map((s,ri)=>{
       var realIdx=DB.practice.indexOf(s);
       var dt=new Date(s.date).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
       var ti=trainingTypeInfo(s.type);
       var rating=s.rating?'⭐'.repeat(Math.max(0,Math.min(5,s.rating))):'';
-      return `<div class="card" style="padding:12px">
+      var calBtn='';
+      if(s.type==='chipping'&&s.counters&&(s.counters.chipTried||0)>0){
+        calBtn='<button class="btn bxs bo mb0" style="width:auto;padding:4px 8px" onclick="event.stopPropagation();go(\'clubsChipEdit\')" title="Aller étalonner">📏 Étalonner</button>';
+      }else if(s.type==='putting'&&s.counters&&((s.counters.shortTried||0)+(s.counters.medTried||0)+(s.counters.longTried||0))>0){
+        calBtn='<button class="btn bxs bo mb0" style="width:auto;padding:4px 8px" onclick="event.stopPropagation();S.petitJeuTab=\'putt\';go(\'petitJeu\')" title="Aller étalonner les repères">📏 Étalonner</button>';
+      }
+      return `<div class="card" style="padding:12px;cursor:pointer" onclick="openTrainingModal(${realIdx})">
         <div class="f" style="justify-content:space-between;align-items:flex-start">
           <div style="flex:1">
             <div class="f fc g8 mb0"><div style="font-size:22px">${ti.icon}</div>
@@ -9477,7 +9687,10 @@ function practiceView(){
             ${s.stats?`<div class="f g8 mt8" style="flex-wrap:wrap">${Object.entries(s.stats).map(([k,v])=>`<span class="badge bg" style="font-size:10px">${esc(k)}: ${esc(String(v))}</span>`).join('')}</div>`:''}
             ${s.notes?`<div class="f12" style="margin-top:8px;color:#334155;padding:8px;background:#f8fafc;border-radius:6px">${esc(s.notes)}</div>`:''}
           </div>
-          <button class="btn bxs bd mb0" style="width:auto;padding:4px 8px" onclick="delPracticeSession(${realIdx})">🗑</button>
+          <div class="f g8" style="flex-direction:column">
+            ${calBtn}
+            <button class="btn bxs bd mb0" style="width:auto;padding:4px 8px" onclick="event.stopPropagation();delPracticeSession(${realIdx})">🗑</button>
+          </div>
         </div>
       </div>`;}).join('')}
   </div>`;
