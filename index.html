@@ -4953,6 +4953,7 @@ const DEFAULT_CLUBS=[
   {id:'drv',name:'Driver',icon:'🏌️',full:null,threeQ:null,half:null},
   {id:'b3',name:'Bois 3',icon:'🪵',full:null,threeQ:null,half:null},
   {id:'b5',name:'Bois 5',icon:'🪵',full:null,threeQ:null,half:null},
+  {id:'b7',name:'Bois 7',icon:'🪵',full:null,threeQ:null,half:null},
   {id:'h3',name:'Hybride 3',icon:'↪️',full:null,threeQ:null,half:null},
   {id:'h4',name:'Hybride 4',icon:'↪️',full:null,threeQ:null,half:null},
   {id:'h5',name:'Hybride 5',icon:'↪️',full:null,threeQ:null,half:null},
@@ -5570,7 +5571,7 @@ function clubsEditView(){
     </div>`;}).join('')}
     ${unlocked?`
     <button class="btn bp mt8" onclick="addCustomClub('${p.id}')">➕ Ajouter un club personnalisé</button>
-    <button class="btn bg2 mt8" onclick="addStandardWedges('${p.id}')">⚡ Ajouter les wedges standard</button>
+    <button class="btn bg2 mt8" onclick="addStandardWedges('${p.id}')" style="display:flex;align-items:center;justify-content:center;gap:8px"><img src="assets/club-icons/favicon-wedge.svg" style="width:18px;height:18px" alt=""> Ajouter les wedges standard</button>
     <button class="btn bd mt8" onclick="resetClubs('${p.id}')">🔄 Réinitialiser au set par défaut</button>
     `:''}
     <button class="btn bp mt8" onclick="S.clubsEditMode=false;go('clubs')">✅ Terminer</button>
@@ -5580,23 +5581,28 @@ function clubsEditView(){
 // Ajouter un club personnalisé (wedge spécifique par ex.)
 function addCustomClub(playerId){
   var p=pById(playerId);if(!p)return;
-  var name=prompt('Nom du nouveau club (ex: "SW 54°", "Chipper", "Approach 52") :','');
+  var name=prompt('Nom du nouveau club (ex : "54°", "Chipper", "Bois 7") :','');
   if(!name||!name.trim())return;
   name=name.trim();
-  // Détermine une icône selon le nom
-  var icon='🔩';
+  // Détermine la catégorie depuis le nom
   var lower=name.toLowerCase();
-  if(lower.includes('wedge')||lower.includes('wg')||lower.match(/\b(pw|gw|sw|lw|aw)\b/)||lower.includes('°'))icon='⚡';
-  else if(lower.includes('bois')||lower.includes('wood'))icon='🪵';
-  else if(lower.includes('hybride')||lower.includes('hybrid'))icon='↪️';
-  else if(lower.includes('driver'))icon='🏌️';
-  else if(lower.includes('putter'))icon='🟢';
-  else if(lower.includes('chipper'))icon='🥄';
+  var cat='other';
+  if(lower.includes('wedge')||lower.match(/\b(pw|gw|sw|lw|aw)\b/)||/\d{2}\s*°/.test(name))cat='wedge';
+  else if(lower.includes('bois')||lower.includes('wood'))cat='bois';
+  else if(lower.includes('hybride')||lower.includes('hybrid'))cat='hybrid';
+  else if(lower.includes('driver'))cat='driver';
+  else if(lower.includes('fer')||lower.includes('iron'))cat='fer';
+  var emojiMap={driver:'🏌️',bois:'🪵',hybrid:'↪️',fer:'🔩',wedge:'⚡',other:'⛳'};
   var id='custom-'+Date.now().toString(36);
   if(!p.clubs)p.clubs=[];
-  p.clubs.push({id:id,name:name,icon:icon,full:null,threeQ:null,half:null,custom:true});
+  p.clubs.push({id:id,name:name,icon:emojiMap[cat],_iconCat:cat,full:null,threeQ:null,half:null,custom:true});
   sortPlayerClubs(p);
-  save();render();
+  save();
+  // Si catégorie non détectée, ouvre automatiquement le sélecteur d'icône
+  if(cat==='other'){
+    render();
+    setTimeout(function(){changeClubIcon(p.id,id);},50);
+  }else render();
 }
 
 // Renommer un club
@@ -5680,7 +5686,7 @@ function addStandardWedges(playerId){
   div.id='wedge-mo';
   div.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:400;align-items:flex-end;padding:0';
   var html='<div style="background:#fff;border-radius:20px 20px 0 0;padding:20px;width:100%;max-height:85vh;overflow-y:auto">';
-  html+='<div style="font-weight:800;font-size:17px;margin-bottom:4px">⚡ Ajouter des wedges</div>';
+  html+='<div style="font-weight:800;font-size:17px;margin-bottom:4px;display:flex;align-items:center;gap:8px"><img src="assets/club-icons/favicon-wedge.svg" style="width:22px;height:22px" alt=""> Ajouter des wedges</div>';
   html+='<div style="font-size:12px;color:#64748b;margin-bottom:14px">Choisis les lofts que tu as dans ton sac (42° à 60°).</div>';
   html+='<div id="wedge-mo-grid" class="f g8" style="flex-wrap:wrap;margin-bottom:6px">';
   lofts.forEach(function(loft){
