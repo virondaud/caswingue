@@ -5161,61 +5161,100 @@ function clubsView(){
 // g.approachLog = [{hole, playerId, type:'chip'|'putt', clubId?, amplitude?, distance, ts}]
 // amplitude pour chip : 'two' | 'three' | 'four'
 // distance : distance parcourue par la balle (mètres)
-function openApproachLogger(){
-  var g=DB.game;if(!g){alert('Pas de partie en cours');return;}
-  if(!g.approachLog)g.approachLog=[];
-  var me=getMePlayer();
-  var defaultPid=me&&g.playerIds.includes(me.id)?me.id:g.playerIds[0];
-  if(!defaultPid){alert('Aucun joueur dans la partie');return;}
-  var existing=document.getElementById('alog-mo');if(existing)existing.remove();
-  var div=document.createElement('div');
-  div.id='alog-mo';
-  div.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:400;align-items:flex-end;padding:0';
+// Accès rapide aux tableaux Petit Jeu pendant la partie
+function openPetitJeuQuick(){
+  var g=DB.game;
+  var p=getMePlayer()||(g&&g.playerIds[0]?pById(g.playerIds[0]):null);
+  if(!p){alert('Aucun joueur sélectionné comme "moi"');return;}
+  if(!S.chipGreen)S.chipGreen='normal';
+  if(!S.chipSlope)S.chipSlope='plat';
+  var green=S.chipGreen,slope=S.chipSlope;
+  var fact=chipGreenFactor(green)*chipSlopeFactor(slope);
+  var factLbl=((fact-1)*100).toFixed(0);
 
-  var html='<div style="background:#fff;border-radius:20px 20px 0 0;padding:20px;width:100%;max-height:90vh;overflow-y:auto">';
-  html+='<div style="font-weight:800;font-size:17px;margin-bottom:12px;display:flex;align-items:center;gap:8px"><img src="assets/club-icons/favicon-wedge.svg" style="width:22px;height:22px" alt=""> Logger un coup court (trou '+(g.currentHole+1)+')</div>';
-
-  // Choix joueur
-  html+='<div class="lbl">Joueur</div><select id="alog-pid" class="inp mb8">';
-  g.playerIds.forEach(function(pid){
-    var p=pById(pid);if(!p)return;
-    html+='<option value="'+pid+'"'+(pid===defaultPid?' selected':'')+'>'+esc(p.name)+'</option>';
+  var clubs=getPlayerClubs(p).filter(isChipClub);
+  clubs.sort(function(a,b){
+    var ka=clubCategory(a)==='fer'?0:1;
+    var kb=clubCategory(b)==='fer'?0:1;
+    if(ka!==kb)return ka-kb;
+    var la=(a.name.match(/(\d{2})\s*°/)||[0,99])[1];
+    var lb=(b.name.match(/(\d{2})\s*°/)||[0,99])[1];
+    return parseInt(la,10)-parseInt(lb,10);
   });
-  html+='</select>';
+  var hasChipData=clubs.some(c=>{var ch=c.chip||{};return ch.two||ch.three||ch.four;});
+  var cal=getPuttCal(p);
+  var hasPuttCal=PUTT_LANDMARKS.some(l=>cal[l.key]);
 
-  // Type
-  html+='<div class="lbl">Type</div>';
-  html+='<div class="f g8 mb8"><button type="button" class="btn bsm mb0" id="alog-t-chip" style="flex:1;background:#7c3aed;color:#fff;border:none" onclick="document.getElementById(\'alog-t-chip\').style.background=\'#7c3aed\';document.getElementById(\'alog-t-chip\').style.color=\'#fff\';document.getElementById(\'alog-t-putt\').style.background=\'#fff\';document.getElementById(\'alog-t-putt\').style.color=\'#475569\';document.getElementById(\'alog-type\').value=\'chip\';document.getElementById(\'alog-chip-fields\').style.display=\'\';document.getElementById(\'alog-putt-hint\').style.display=\'none\'">🪶 Chip / approche</button>';
-  html+='<button type="button" class="btn bsm mb0" id="alog-t-putt" style="flex:1;background:#fff;color:#475569;border:1px solid #cbd5e1" onclick="document.getElementById(\'alog-t-putt\').style.background=\'#7c3aed\';document.getElementById(\'alog-t-putt\').style.color=\'#fff\';document.getElementById(\'alog-t-chip\').style.background=\'#fff\';document.getElementById(\'alog-t-chip\').style.color=\'#475569\';document.getElementById(\'alog-type\').value=\'putt\';document.getElementById(\'alog-chip-fields\').style.display=\'none\';document.getElementById(\'alog-putt-hint\').style.display=\'\'">🟢 Putt</button></div>';
-  html+='<input type="hidden" id="alog-type" value="chip">';
+  var btn=function(curSel,key,val,emoji,label){
+    var active=curSel===val;
+    return `<button class="btn bsm mb0" style="flex:1;font-size:12px;padding:8px 4px;${active?'':'background:#fff;color:#475569;border:1px solid #cbd5e1'}" onclick="S.${key}='${val}';openPetitJeuQuick()">${emoji} ${label}</button>`;
+  };
 
-  // Champs chip
-  html+='<div id="alog-chip-fields">';
-  html+='<div class="lbl">Club utilisé</div><select id="alog-club" class="inp mb8">';
-  var me2=pById(defaultPid);
-  var chipClubs=me2?getPlayerClubs(me2).filter(isChipClub):[];
-  if(chipClubs.length===0)html+='<option value="">(aucun fer 7-9 ou wedge)</option>';
-  chipClubs.forEach(function(c){html+='<option value="'+c.id+'">'+esc(c.name)+'</option>';});
-  html+='</select>';
-  html+='<div class="lbl">Amplitude</div>';
-  html+='<div class="f g8 mb8">';
-  html+='<button type="button" class="btn bsm mb0 alog-amp" data-amp="four" style="flex:1;background:#fff;color:#475569;border:1px solid #cbd5e1" onclick="selAmp(\'four\')">¼</button>';
-  html+='<button type="button" class="btn bsm mb0 alog-amp" data-amp="three" style="flex:1;background:#fff;color:#475569;border:1px solid #cbd5e1" onclick="selAmp(\'three\')">⅓</button>';
-  html+='<button type="button" class="btn bsm mb0 alog-amp" data-amp="two" style="flex:1;background:#7c3aed;color:#fff;border:none" onclick="selAmp(\'two\')">½</button>';
-  html+='</div><input type="hidden" id="alog-amp" value="two">';
+  // Tableau chipping compact
+  var chipRows=clubs.map(function(c){
+    var ch=c.chip||{};
+    var v2=ch.two,v3=ch.three,v4=ch.four;
+    var a2=chipAdjust(v2,green,slope),a3=chipAdjust(v3,green,slope),a4=chipAdjust(v4,green,slope);
+    var cell=function(adj,ref){
+      if(!adj)return '<span class="tm">–</span>';
+      return '<span class="fw7" style="color:#7c3aed">'+adj+'</span><span class="f11 tm" style="margin-left:3px">(ref '+ref+')</span>';
+    };
+    return '<tr style="border-bottom:1px solid #f1f5f9">'+
+      '<td style="padding:6px;font-weight:700">'+clubIconHtml(c,16)+' '+esc(c.name)+'</td>'+
+      '<td style="padding:6px;text-align:center;font-size:12px">'+cell(a4,v4)+'</td>'+
+      '<td style="padding:6px;text-align:center;font-size:12px">'+cell(a3,v3)+'</td>'+
+      '<td style="padding:6px;text-align:center;font-size:12px">'+cell(a2,v2)+'</td>'+
+      '</tr>';
+  }).join('');
+
+  var puttRows=PUTT_LANDMARKS.map(function(l){
+    var v=cal[l.key];
+    if(!v)return '<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">'+l.icon+' '+esc(l.label)+'</td><td style="padding:6px;text-align:center;color:#94a3b8" colspan="2">Non étalonné</td></tr>';
+    var adj=Math.round(v*fact*10)/10;
+    return '<tr style="border-bottom:1px solid #f1f5f9">'+
+      '<td style="padding:6px;font-weight:700">'+l.icon+' '+esc(l.label)+'</td>'+
+      '<td style="padding:6px;text-align:center;font-size:12px">'+v+' m</td>'+
+      '<td style="padding:6px;text-align:center;font-size:13px;font-weight:700;color:#7c3aed">'+adj+' m</td>'+
+      '</tr>';
+  }).join('');
+
+  var existing=document.getElementById('pj-q');if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.id='pj-q';
+  div.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:400;align-items:flex-end;padding:0';
+  var html='<div style="background:#fff;border-radius:20px 20px 0 0;padding:16px;width:100%;max-height:92vh;overflow-y:auto">';
+  html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><img src="assets/club-icons/favicon-wedge.svg" style="width:22px;height:22px" alt=""><div style="font-weight:800;font-size:17px">Petit jeu · conditions</div></div>';
+
+  // Sélecteurs rapides
+  html+='<div style="padding:8px 10px;background:#faf5ff;border-radius:10px;margin-bottom:10px">';
+  html+='<div class="f11 tm mb0" style="margin-bottom:4px">🌱 Green</div>';
+  html+='<div class="f g8 mb0">'+btn(green,'chipGreen','lent','🐢','Lent')+btn(green,'chipGreen','normal','🟢','Normal')+btn(green,'chipGreen','rapide','⚡','Rapide')+'</div>';
+  html+='<div class="f11 tm mb0" style="margin-top:8px;margin-bottom:4px">⛰️ Pente</div>';
+  html+='<div class="f g8 mb0">'+btn(slope,'chipSlope','montee','↗️','Montée')+btn(slope,'chipSlope','plat','➡️','Plat')+btn(slope,'chipSlope','descente','↘️','Descente')+'</div>';
+  html+='<div class="f11 tm mt8" style="text-align:center">Facteur <b style="color:#7c3aed">×'+fact.toFixed(2)+'</b> ('+(factLbl>=0?'+':'')+factLbl+'%)</div>';
   html+='</div>';
 
-  // Hint putt
-  html+='<div id="alog-putt-hint" class="f11 tm mb8" style="display:none;padding:8px;background:#f0fdf4;border-radius:8px">📏 Entre la distance du putt (de la balle au trou avant le coup, ou la distance parcourue).</div>';
+  // Section chipping
+  html+='<div class="ct" style="margin-top:4px">🪶 Approches roulées — '+esc(p.name)+'</div>';
+  if(hasChipData){
+    html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">';
+    html+='<thead><tr style="border-bottom:2px solid #e2e8f0"><th style="padding:6px;text-align:left">Club</th><th style="padding:6px;text-align:center">¼</th><th style="padding:6px;text-align:center">⅓</th><th style="padding:6px;text-align:center">½</th></tr></thead>';
+    html+='<tbody>'+chipRows+'</tbody></table></div>';
+  }else{
+    html+='<div class="f12 tm" style="padding:10px;background:#fef3c7;border-radius:8px">⚠️ Aucune distance chipping étalonnée. <a href="javascript:void(0)" onclick="document.getElementById(\'pj-q\').remove();go(\'clubsChipEdit\')" style="color:#7c3aed">Étalonner</a></div>';
+  }
 
-  // Distance
-  html+='<div class="lbl">Distance parcourue (mètres)</div>';
-  html+='<input type="number" id="alog-dist" class="inp mb8" step="0.5" min="0" max="150" placeholder="ex: 18.5">';
+  // Section putting
+  html+='<div class="ct" style="margin-top:14px">🟢 Putting</div>';
+  if(hasPuttCal){
+    html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">';
+    html+='<thead><tr style="border-bottom:2px solid #e2e8f0"><th style="padding:6px;text-align:left">Repère</th><th style="padding:6px;text-align:center">Ref</th><th style="padding:6px;text-align:center">Ajusté</th></tr></thead>';
+    html+='<tbody>'+puttRows+'</tbody></table></div>';
+  }else{
+    html+='<div class="f12 tm" style="padding:10px;background:#fef3c7;border-radius:8px">⚠️ Aucun repère putting étalonné. <a href="javascript:void(0)" onclick="document.getElementById(\'pj-q\').remove();go(\'petitJeu\')" style="color:#7c3aed">Étalonner</a></div>';
+  }
 
-  html+='<div class="f g8">';
-  html+='<button class="btn bo mb0" style="flex:1" onclick="document.getElementById(\'alog-mo\').remove()">Annuler</button>';
-  html+='<button class="btn bp mb0" style="flex:2" onclick="saveApproachLog()">✅ Enregistrer</button>';
-  html+='</div>';
+  html+='<button class="btn bp mt8 mb0" style="width:100%" onclick="document.getElementById(\'pj-q\').remove()">Fermer</button>';
   html+='</div>';
   div.innerHTML=html;
   document.body.appendChild(div);
@@ -6098,11 +6137,77 @@ function clubsAdvisorView(){
     </div>`;
   }
 
-  return`<div class="hdr"><button class="back" onclick="S.advisorReturnTo=null;go('${backTarget}')">‹</button><h1>🎯 Quel club ?</h1>
-    ${inGame?`<span class="badge bg" style="background:#16a34a;color:#fff">Partie en cours</span>`:''}
+  if(!S.advisorTab)S.advisorTab='club';
+  var tabBar=`<div class="f g8 mb8" style="position:sticky;top:0;background:#fff;padding:4px 0;z-index:5">
+    <button class="btn bsm mb0" style="flex:1;${S.advisorTab==='club'?'':'background:#fff;color:#475569;border:1px solid #cbd5e1'}" onclick="S.advisorTab='club';render()">🎯 Quel club</button>
+    <button class="btn bsm mb0" style="flex:1;${S.advisorTab==='petitJeu'?'background:#7c3aed;color:#fff;border:none':'background:#fff;color:#475569;border:1px solid #cbd5e1'}" onclick="S.advisorTab='petitJeu';render()"><img src="assets/club-icons/favicon-wedge.svg" style="width:14px;height:14px;vertical-align:middle;margin-right:4px">Petit jeu</button>
+  </div>`;
+
+  // ── Onglet Petit Jeu : compact chip + putting avec green/pente ──
+  if(S.advisorTab==='petitJeu'){
+    if(!S.chipGreen)S.chipGreen='normal';
+    if(!S.chipSlope)S.chipSlope='plat';
+    var green=S.chipGreen,slopeG=S.chipSlope;
+    var fact=chipGreenFactor(green)*chipSlopeFactor(slopeG);
+    var factLbl=((fact-1)*100).toFixed(0);
+    var chipClubsPJ=getPlayerClubs(p).filter(isChipClub);
+    chipClubsPJ.sort(function(a,b){
+      var ka=clubCategory(a)==='fer'?0:1;
+      var kb=clubCategory(b)==='fer'?0:1;
+      if(ka!==kb)return ka-kb;
+      var la=(a.name.match(/(\d{2})\s*°/)||[0,99])[1];
+      var lb=(b.name.match(/(\d{2})\s*°/)||[0,99])[1];
+      return parseInt(la,10)-parseInt(lb,10);
+    });
+    var hasChipPJ=chipClubsPJ.some(c=>{var ch=c.chip||{};return ch.two||ch.three||ch.four;});
+    var calPJ=getPuttCal(p);
+    var hasPuttPJ=PUTT_LANDMARKS.some(l=>calPJ[l.key]);
+    var tbtn=function(cur,key,val,emoji,label){
+      var active=cur===val;
+      return `<button class="btn bsm mb0" style="flex:1;font-size:12px;padding:8px 4px;${active?'':'background:#fff;color:#475569;border:1px solid #cbd5e1'}" onclick="S.${key}='${val}';render()">${emoji} ${label}</button>`;
+    };
+    return `<div class="hdr"><button class="back" onclick="S.advisorReturnTo=null;go('${backTarget}')">‹</button><h1>🎯 Conseils ${esc(p.name)}</h1>
+      ${inGame?`<span class="badge bg" style="background:#16a34a;color:#fff">Partie</span>`:''}
+    </div>
+    <div class="content an">
+      ${tabBar}
+      <div class="card" style="padding:10px;background:#faf5ff">
+        <div class="f11 tm" style="margin-bottom:4px">🌱 Green</div>
+        <div class="f g8 mb0">${tbtn(green,'chipGreen','lent','🐢','Lent')}${tbtn(green,'chipGreen','normal','🟢','Normal')}${tbtn(green,'chipGreen','rapide','⚡','Rapide')}</div>
+        <div class="f11 tm" style="margin-top:8px;margin-bottom:4px">⛰️ Pente</div>
+        <div class="f g8 mb0">${tbtn(slopeG,'chipSlope','montee','↗️','Montée')}${tbtn(slopeG,'chipSlope','plat','➡️','Plat')}${tbtn(slopeG,'chipSlope','descente','↘️','Descente')}</div>
+        <div class="f11 tm mt8" style="text-align:center">Facteur <b style="color:#7c3aed">×${fact.toFixed(2)}</b> (${factLbl>=0?'+':''}${factLbl}%)</div>
+      </div>
+      <div class="st">🪶 Approches roulées</div>
+      ${hasChipPJ?`<div class="card" style="overflow-x:auto;padding:8px"><table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:2px solid #e2e8f0"><th style="padding:6px;text-align:left">Club</th><th style="padding:6px;text-align:center">¼</th><th style="padding:6px;text-align:center">⅓</th><th style="padding:6px;text-align:center">½</th></tr></thead>
+        <tbody>${chipClubsPJ.map(function(c){
+          var ch=c.chip||{};
+          var v2=ch.two,v3=ch.three,v4=ch.four;
+          var a2=chipAdjust(v2,green,slopeG),a3=chipAdjust(v3,green,slopeG),a4=chipAdjust(v4,green,slopeG);
+          var cell=function(adj,ref){if(!adj)return '<span class="tm">–</span>';return '<div class="fw7" style="color:#7c3aed">'+adj+'m</div><div class="f11 tm">ref '+ref+'</div>';};
+          return '<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px;font-weight:700">'+clubIconHtml(c,16)+' '+esc(c.name)+'</td>'+
+            '<td style="padding:6px;text-align:center">'+cell(a4,v4)+'</td>'+
+            '<td style="padding:6px;text-align:center">'+cell(a3,v3)+'</td>'+
+            '<td style="padding:6px;text-align:center">'+cell(a2,v2)+'</td></tr>';
+        }).join('')}</tbody></table></div>`:`<div class="card"><div class="f12 tm">⚠️ Aucune distance chipping étalonnée. <a href="javascript:void(0)" onclick="go('clubsChipEdit')" style="color:#7c3aed">Étalonner au practice</a></div></div>`}
+      <div class="st">🟢 Putting</div>
+      ${hasPuttPJ?`<div class="card" style="overflow-x:auto;padding:8px"><table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:2px solid #e2e8f0"><th style="padding:6px;text-align:left">Repère</th><th style="padding:6px;text-align:center">Ref</th><th style="padding:6px;text-align:center">Ajusté</th></tr></thead>
+        <tbody>${PUTT_LANDMARKS.map(function(l){
+          var v=calPJ[l.key];
+          if(!v)return '<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px">'+l.icon+' '+esc(l.label)+'</td><td colspan="2" style="padding:6px;text-align:center;color:#94a3b8">–</td></tr>';
+          var adj=Math.round(v*fact*10)/10;
+          return '<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px;font-weight:700">'+l.icon+' '+esc(l.label)+'</td><td style="padding:6px;text-align:center">'+v+'m</td><td style="padding:6px;text-align:center;font-weight:700;color:#7c3aed">'+adj+'m</td></tr>';
+        }).join('')}</tbody></table></div>`:`<div class="card"><div class="f12 tm">⚠️ Aucun repère putting étalonné. <a href="javascript:void(0)" onclick="go('petitJeu')" style="color:#7c3aed">Étalonner</a></div></div>`}
+    </div>`;
+  }
+
+  return`<div class="hdr"><button class="back" onclick="S.advisorReturnTo=null;go('${backTarget}')">‹</button><h1>🎯 Conseils ${esc(p.name)}</h1>
+    ${inGame?`<span class="badge bg" style="background:#16a34a;color:#fff">Partie</span>`:''}
   </div>
   <div class="content an">
-
+    ${tabBar}
     ${playerOptions.length>1?`<div class="card" style="padding:10px"><div class="f g8" style="flex-wrap:wrap">
       ${playerOptions.map(pl=>`<button class="btn bsm mb0 ${S.clubsPlayerId===pl.id?'bp':'bo'}" onclick="S.clubsPlayerId='${pl.id}';render()">${esc(pl.name)}</button>`).join('')}
     </div></div>`:''}
@@ -6850,7 +6955,7 @@ function playing(){
   return`
   <div class="hdr"><button class="back" onclick="go('home')">‹</button>
   <h1 style="font-size:14px">${esc(course.name)} <span style='font-size:11px;opacity:.8'>${g.tee==='jaune'?'🟡':'⬜'}</span></h1>
-  <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><a href="https://18birdies.com" class="ha" title="18Birdies GPS" style="font-size:18px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;text-decoration:none">🐦</a><button class="ha" onclick="openAdvisorFromGame()" title="Quel club ?" style="font-size:20px;width:44px;height:44px;background:rgba(22,163,74,.15);color:#16a34a">🎯</button><button class="ha" onclick="openApproachLogger()" title="Logger un coup court" style="font-size:20px;width:44px;height:44px;background:rgba(124,58,237,.15);color:#7c3aed">🪶</button><button class="ha" onclick="go('scorecard')" style="font-size:20px;width:44px;height:44px">📊</button><button class="ha" onclick="shareScores()" style="font-size:20px;width:44px;height:44px">📲</button><button class="ha" onclick="startLiveShare()" title="${DB.game?.liveId?'Rediffuser le lien live':'Démarrer le partage live'}" style="font-size:20px;width:44px;height:44px;${DB.game?.liveId?'background:rgba(22,163,74,.15);color:#16a34a':''}">📡</button><button class="ha" onclick="terminateGame()" title="Terminer la partie" style="font-size:20px;width:44px;height:44px">🏁</button></div></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><a href="https://18birdies.com" class="ha" title="18Birdies GPS" style="font-size:18px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;text-decoration:none">🐦</a><button class="ha" onclick="openAdvisorFromGame()" title="Quel club ?" style="font-size:20px;width:44px;height:44px;background:rgba(22,163,74,.15);color:#16a34a">🎯</button><button class="ha" onclick="go('scorecard')" style="font-size:20px;width:44px;height:44px">📊</button><button class="ha" onclick="shareScores()" style="font-size:20px;width:44px;height:44px">📲</button><button class="ha" onclick="startLiveShare()" title="${DB.game?.liveId?'Rediffuser le lien live':'Démarrer le partage live'}" style="font-size:20px;width:44px;height:44px;${DB.game?.liveId?'background:rgba(22,163,74,.15);color:#16a34a':''}">📡</button><button class="ha" onclick="terminateGame()" title="Terminer la partie" style="font-size:20px;width:44px;height:44px">🏁</button></div></div>
   <div class="content an" style="padding-bottom:100px">
     <div class="hh">
       <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.5px">Trou</div>
