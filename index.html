@@ -5238,13 +5238,15 @@ function chipAdjust(base,green,slope){
   if(!base)return null;
   return Math.round(base*chipGreenFactor(green)*chipSlopeFactor(slope));
 }
-// Les clubs d'approche concernés : fer 9 + wedges
+// Les clubs d'approche concernés : fers 7/8/9 + wedges
 function isChipClub(club){
   var cat=clubCategory(club);
   if(cat==='wedge')return true;
   if(cat==='fer'){
     var m=(club.id||'').match(/\d+/);
-    return m && parseInt(m[0],10)===9;
+    if(!m)m=(club.name||'').match(/\d+/);
+    var n=m?parseInt(m[0],10):0;
+    return n===7||n===8||n===9;
   }
   return false;
 }
