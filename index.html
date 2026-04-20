@@ -5306,15 +5306,14 @@ function petitJeuView(){
     return parseInt(la,10)-parseInt(lb,10);
   });
   var hasChipData=chipClubs.some(c=>{var ch=c.chip||{};return ch.two||ch.three||ch.four;});
-  var hasFullData=chipClubs.some(c=>c.threeQ||c.half||c.full);
 
   var chipEditBtn=`<button class="btn bsm bo mb8" onclick="go('clubsChipEdit')">✏️ Étalonner mes distances chipping</button>`;
 
-  var chipTable=(!hasChipData&&!hasFullData)?`<div class="card"><div class="empty" style="padding:20px">
-    <div class="ei">📏</div>
-    <p class="f13">Aucune distance saisie</p>
+  var chipTable=!hasChipData?`<div class="card"><div class="empty" style="padding:20px">
+    <div class="ei">🪶</div>
+    <p class="f13">Aucune distance chipping étalonnée</p>
+    <p class="f11 tm" style="margin-top:6px">Le chipping (poignets bloqués, backswing court) donne des distances bien différentes du plein swing. Il faut les mesurer au practice.</p>
     <button class="btn bp mt8" onclick="go('clubsChipEdit')">Étalonner au practice</button>
-    <button class="btn bo mt8" onclick="go('clubsEdit')">ou saisir les pleins coups</button>
   </div></div>`:`
   ${chipEditBtn}
   <div class="card" style="overflow-x:auto;padding:10px">
@@ -5328,31 +5327,29 @@ function petitJeuView(){
       <tbody>
         ${chipClubs.map(function(c){
           var ch=c.chip||{};
-          // ½, ⅓, ¼ : utilise chip.* si saisi, sinon estime depuis plein coup
-          var v2=ch.two||(c.half?c.half:(c.full?Math.round(c.full*0.55):null));
-          var v3=ch.three||(c.threeQ?Math.round(c.threeQ*0.55):(c.full?Math.round(c.full*0.38):null));
-          var v4=ch.four||(c.full?Math.round(c.full*0.25):(c.half?Math.round(c.half*0.5):null));
-          var src2=ch.two?'📏':'≈';var src3=ch.three?'📏':'≈';var src4=ch.four?'📏':'≈';
+          var v2=ch.two||null;
+          var v3=ch.three||null;
+          var v4=ch.four||null;
           var a2=chipAdjust(v2,green,slope);
           var a3=chipAdjust(v3,green,slope);
           var a4=chipAdjust(v4,green,slope);
-          var cell=function(adj,ref,src){
+          var cell=function(adj,ref){
             if(!adj)return '<div class="tm">–</div>';
-            return '<div class="fw7" style="color:#7c3aed">'+adj+' m</div><div class="f11 tm">'+src+' '+ref+' m</div>';
+            return '<div class="fw7" style="color:#7c3aed">'+adj+' m</div><div class="f11 tm">ref '+ref+' m</div>';
           };
           return `<tr style="border-bottom:1px solid #f1f5f9">
             <td style="padding:8px;font-weight:700">${clubIconHtml(c,18)} ${esc(c.name)}</td>
-            <td style="padding:8px;text-align:center">${cell(a4,v4,src4)}</td>
-            <td style="padding:8px;text-align:center">${cell(a3,v3,src3)}</td>
-            <td style="padding:8px;text-align:center">${cell(a2,v2,src2)}</td>
+            <td style="padding:8px;text-align:center">${cell(a4,v4)}</td>
+            <td style="padding:8px;text-align:center">${cell(a3,v3)}</td>
+            <td style="padding:8px;text-align:center">${cell(a2,v2)}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
   </div>
   <div class="f11 tm mt8" style="padding:10px;background:#faf5ff;border-radius:10px;line-height:1.5">
-    <b>📏</b> = distance mesurée au practice (valeur exacte) · <b>≈</b> = estimation depuis ton plein coup.<br>
-    Clique ✏️ pour étalonner précisément chaque club (technique chipping = poignets bloqués, backswing court).
+    ⚠️ Les distances chipping sont <b>totalement indépendantes</b> du plein swing : le geste est plus court, les poignets sont bloqués, la balle roule beaucoup. Il faut les étalonner séparément au practice.<br>
+    Les trous "–" correspondent aux clubs/amplitudes non encore étalonnés. Clique ✏️ pour les ajouter.
   </div>`;
 
   // ── Onglet Putting ──
