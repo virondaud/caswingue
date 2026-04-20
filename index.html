@@ -4960,11 +4960,70 @@ const DEFAULT_CLUBS=[
   {id:'f7',name:'Fer 7',icon:'🔩',full:null,threeQ:null,half:null},
   {id:'f8',name:'Fer 8',icon:'🔩',full:null,threeQ:null,half:null},
   {id:'f9',name:'Fer 9',icon:'🔩',full:null,threeQ:null,half:null},
-  {id:'pw48',name:'PW 48°',icon:'⚡',full:null,threeQ:null,half:null},
-  {id:'gw52',name:'GW 52°',icon:'⚡',full:null,threeQ:null,half:null},
-  {id:'sw56',name:'SW 56°',icon:'⚡',full:null,threeQ:null,half:null},
-  {id:'lw60',name:'LW 60°',icon:'⚡',full:null,threeQ:null,half:null}
+  {id:'w48',name:'48°',icon:'⚡',full:null,threeQ:null,half:null},
+  {id:'w52',name:'52°',icon:'⚡',full:null,threeQ:null,half:null},
+  {id:'w56',name:'56°',icon:'⚡',full:null,threeQ:null,half:null},
+  {id:'w60',name:'60°',icon:'⚡',full:null,threeQ:null,half:null}
 ];
+
+// Retourne la catégorie d'un club : 'driver' | 'bois' | 'hybrid' | 'fer' | 'wedge' | 'other'
+function clubCategory(club){
+  if(club&&club._iconCat)return club._iconCat; // override utilisateur
+  var id=(club.id||'').toLowerCase();
+  var name=(club.name||'').toLowerCase();
+  if(id==='drv'||name.includes('driver'))return 'driver';
+  if(/\d{2}\s*°/.test(name)||club.icon==='⚡'||/\b(pw|gw|sw|lw|aw|wedge)\b/i.test(name))return 'wedge';
+  if(/^b\d/.test(id)||name.includes('bois')||name.includes('wood'))return 'bois';
+  if(/^h\d/.test(id)||name.includes('hybride')||name.includes('hybrid'))return 'hybrid';
+  if(/^f\d/.test(id)||name.includes('fer')||name.includes('iron'))return 'fer';
+  return 'other';
+}
+// HTML pour l'icône d'un club : SVG si dispo, sinon emoji
+function clubIconHtml(club,size){
+  var sz=size||20;
+  var cat=clubCategory(club);
+  var file={driver:'favicon-driver.svg',bois:'favicon-bois.svg',hybrid:'favicon-hybrid.svg',fer:'favicon-fer.svg',wedge:'favicon-wedge.svg'}[cat];
+  if(file)return '<img src="assets/club-icons/'+file+'" alt="" style="width:'+sz+'px;height:'+sz+'px;vertical-align:middle;display:inline-block" draggable="false">';
+  return '<span style="font-size:'+sz+'px">'+(club.icon||'⛳')+'</span>';
+}
+// Catégorie + valeur de tri d'un club (pour ordre : Driver → Bois → Hybride → Fer → Wedge par loft)
+function clubSortKey(club){
+  var id=(club.id||'').toLowerCase();
+  var name=(club.name||'').toLowerCase();
+  // Driver
+  if(id==='drv'||name.includes('driver'))return [0,0];
+  // Wedge (loft en degrés) — on les met en dernier, triés par loft croissant
+  var loftMatch=name.match(/(\d{2})\s*°/);
+  if(loftMatch||club.icon==='⚡'||/\b(pw|gw|sw|lw|aw|wedge)\b/i.test(name)){
+    var loft=loftMatch?parseInt(loftMatch[1],10):99;
+    return [4,loft];
+  }
+  // Bois
+  if(/^b\d/.test(id)||name.includes('bois')||name.includes('wood')){
+    var boisNum=parseInt((id.match(/\d+/)||name.match(/\d+/)||[99])[0],10);
+    return [1,boisNum];
+  }
+  // Hybride
+  if(/^h\d/.test(id)||name.includes('hybride')||name.includes('hybrid')){
+    var hybNum=parseInt((id.match(/\d+/)||name.match(/\d+/)||[99])[0],10);
+    return [2,hybNum];
+  }
+  // Fer
+  if(/^f\d/.test(id)||name.includes('fer')||name.includes('iron')){
+    var ferNum=parseInt((id.match(/\d+/)||name.match(/\d+/)||[99])[0],10);
+    return [3,ferNum];
+  }
+  // Putter/chipper/divers → avant wedges
+  return [3.5,99];
+}
+function sortPlayerClubs(p){
+  if(!p||!Array.isArray(p.clubs))return;
+  p.clubs.sort(function(a,b){
+    var ka=clubSortKey(a),kb=clubSortKey(b);
+    if(ka[0]!==kb[0])return ka[0]-kb[0];
+    return ka[1]-kb[1];
+  });
+}
 
 function getPlayerClubs(p){
   if(!p.clubs||!Array.isArray(p.clubs)||p.clubs.length===0){
@@ -4974,6 +5033,7 @@ function getPlayerClubs(p){
   DEFAULT_CLUBS.forEach(def=>{
     if(!p.clubs.find(c=>c.id===def.id))p.clubs.push({...def});
   });
+  sortPlayerClubs(p);
   return p.clubs;
 }
 
@@ -5129,14 +5189,14 @@ function renderClubsTable(p,showAdjusted){
           var f=c.full,t=c.threeQ,h=c.half;
           if(showAdjusted){
             return`<tr style="border-bottom:1px solid #f1f5f9">
-              <td style="padding:8px;font-weight:700">${c.icon} ${esc(c.name)}</td>
+              <td style="padding:8px;font-weight:700">${clubIconHtml(c,18)} ${esc(c.name)}</td>
               <td style="padding:8px;text-align:center"><div class="fw7" style="color:var(--g)">${formatDistance(f,factor)}</div>${f?`<div class="f11 tm">ref ${f}m</div>`:''}</td>
               <td style="padding:8px;text-align:center"><div class="fw7" style="color:var(--g)">${formatDistance(t,factor)}</div>${t?`<div class="f11 tm">ref ${t}m</div>`:''}</td>
               <td style="padding:8px;text-align:center"><div class="fw7" style="color:var(--g)">${formatDistance(h,factor)}</div>${h?`<div class="f11 tm">ref ${h}m</div>`:''}</td>
             </tr>`;
           }
           return`<tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px;font-weight:700">${c.icon} ${esc(c.name)}</td>
+            <td style="padding:8px;font-weight:700">${clubIconHtml(c,18)} ${esc(c.name)}</td>
             <td style="padding:8px;text-align:center;font-weight:700">${f?f+' m':'–'}</td>
             <td style="padding:8px;text-align:center">${t?t+' m':'–'}</td>
             <td style="padding:8px;text-align:center">${h?h+' m':'–'}</td>
@@ -5171,14 +5231,22 @@ function clubsEditView(){
       💡 Laisse vide les clubs que tu ne possèdes pas ou que tu ne joues pas à 3/4 ou 1/2.
     </div>
 
-    ${clubs.map((c,i)=>`
-    <div class="card" style="padding:12px;${!unlocked?'opacity:.85':''}">
+    <div class="rb mb8">
+      <button class="btn bsm ${S.clubsHideEmpty?'bp':'bo'} mb0" style="flex:1" onclick="S.clubsHideEmpty=!S.clubsHideEmpty;render()">${S.clubsHideEmpty?'👁️ Afficher tous les clubs':'🙈 Masquer les clubs sans distance'}</button>
+    </div>
+
+    ${clubs.map((c,i)=>{
+      var hasDist=c.full||c.threeQ||c.half;
+      if(S.clubsHideEmpty&&!hasDist&&!unlocked)return '';
+      return `
+    <div class="card" style="padding:12px;${!unlocked?'opacity:.85':''};${!hasDist&&unlocked?'border:1px dashed #cbd5e1':''}">
       <div class="f fc g8 mb0" style="margin-bottom:10px">
-        <div style="font-size:22px">${c.icon}</div>
+        <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center">${clubIconHtml(c,24)}</div>
         <div style="flex:1">
-          <div class="fw7 f14">${esc(c.name)}</div>
-          ${unlocked?`<div class="f11 tm">
+          <div class="fw7 f14">${esc(c.name)}${!hasDist?'<span class="f11 tm" style="margin-left:6px">(non configuré)</span>':''}</div>
+          ${unlocked?`<div class="f11 tm f g8" style="flex-wrap:wrap;margin-top:2px">
             <button class="btn bxs bo mb0" style="padding:2px 6px;font-size:10px" onclick="renameClub('${p.id}','${c.id}')">✏️ Renommer</button>
+            <button class="btn bxs bo mb0" style="padding:2px 6px;font-size:10px" onclick="changeClubIcon('${p.id}','${c.id}')">🖼 Icône</button>
           </div>`:''}
         </div>
         ${unlocked?`<button class="btn bxs bd mb0" style="padding:4px 8px" onclick="removeClub('${p.id}','${c.id}')" title="Supprimer ce club">🗑</button>`:''}
@@ -5194,7 +5262,7 @@ function clubsEditView(){
           <input type="number" class="inp" min="0" max="400" value="${c.half??''}" ${unlocked?'':'readonly'} style="${!unlocked?'background:#f1f5f9;cursor:not-allowed':''}" onchange="if(${unlocked}){DB.players.find(pl=>pl.id==='${p.id}').clubs[${i}].half=parseInt(this.value)||null;save()}" placeholder="–">
         </div>
       </div>
-    </div>`).join('')}
+    </div>`;}).join('')}
     ${unlocked?`
     <button class="btn bp mt8" onclick="addCustomClub('${p.id}')">➕ Ajouter un club personnalisé</button>
     <button class="btn bg2 mt8" onclick="addStandardWedges('${p.id}')">⚡ Ajouter les wedges standard</button>
@@ -5222,6 +5290,7 @@ function addCustomClub(playerId){
   var id='custom-'+Date.now().toString(36);
   if(!p.clubs)p.clubs=[];
   p.clubs.push({id:id,name:name,icon:icon,full:null,threeQ:null,half:null,custom:true});
+  sortPlayerClubs(p);
   save();render();
 }
 
@@ -5245,35 +5314,60 @@ function removeClub(playerId,clubId){
   });
 }
 
-// Ouvre un sélecteur visuel pour ajouter des wedges par loft
+// Sélecteur d'icône pour un club
+function changeClubIcon(playerId,clubId){
+  var p=pById(playerId);if(!p)return;
+  var club=p.clubs?.find(c=>c.id===clubId);if(!club)return;
+  var cats=[
+    {key:'driver',label:'Driver',emoji:'🏌️'},
+    {key:'bois',label:'Bois',emoji:'🪵'},
+    {key:'hybrid',label:'Hybride',emoji:'↪️'},
+    {key:'fer',label:'Fer',emoji:'🔩'},
+    {key:'wedge',label:'Wedge',emoji:'⚡'}
+  ];
+  var existing=document.getElementById('icon-mo');if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.id='icon-mo';
+  div.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:400;align-items:flex-end;padding:0';
+  var html='<div style="background:#fff;border-radius:20px 20px 0 0;padding:20px;width:100%">';
+  html+='<div style="font-weight:800;font-size:17px;margin-bottom:4px">🖼 Icône de '+esc(club.name)+'</div>';
+  html+='<div style="font-size:12px;color:#64748b;margin-bottom:14px">Choisis la catégorie qui correspond à ce club.</div>';
+  html+='<div class="f g8" style="flex-wrap:wrap">';
+  cats.forEach(function(cat){
+    var fake={id:'__',name:'__',icon:cat.emoji};
+    html+='<button class="btn mb0" style="flex:1 1 45%;padding:14px;display:flex;flex-direction:column;align-items:center;gap:6px" onclick="setClubIconCat(\''+playerId+'\',\''+clubId+'\',\''+cat.key+'\')">';
+    html+='<img src="assets/club-icons/favicon-'+(cat.key==='hybrid'?'hybrid':cat.key)+'.svg" style="width:32px;height:32px" alt="">';
+    html+='<span class="f12 fw7">'+cat.label+'</span></button>';
+  });
+  html+='</div>';
+  html+='<button class="btn bo mt8" onclick="document.getElementById(\'icon-mo\').remove()">Annuler</button>';
+  html+='</div>';
+  div.innerHTML=html;
+  document.body.appendChild(div);
+}
+function setClubIconCat(playerId,clubId,cat){
+  var p=pById(playerId);if(!p)return;
+  var club=p.clubs?.find(c=>c.id===clubId);if(!club)return;
+  var emojiMap={driver:'🏌️',bois:'🪵',hybrid:'↪️',fer:'🔩',wedge:'⚡'};
+  club.icon=emojiMap[cat]||'⛳';
+  club._iconCat=cat; // force la catégorie pour clubCategory()
+  save();
+  document.getElementById('icon-mo')?.remove();
+  render();
+}
+
+// Ouvre un sélecteur visuel pour ajouter des wedges par loft (42° à 60°, sans préfixe)
 function addStandardWedges(playerId){
   var p=pById(playerId);if(!p)return;
   if(!p.clubs)p.clubs=[];
-  var existingIds=new Set(p.clubs.map(c=>c.id));
+  // Détecte les wedges déjà présents (par loft)
+  var existingLofts=new Set();
+  p.clubs.forEach(c=>{
+    var m=(c.name||'').match(/(\d{2})\s*°/);
+    if(m)existingLofts.add(parseInt(m[1],10));
+  });
 
-  // Catalogue complet des lofts courants
-  var wedgeCatalog=[
-    {group:'Pitching Wedge',lofts:[
-      {id:'pw44',name:'PW 44°'},
-      {id:'pw46',name:'PW 46°'},
-      {id:'pw48',name:'PW 48°'}
-    ]},
-    {group:'Gap Wedge / Approach',lofts:[
-      {id:'gw50',name:'GW 50°'},
-      {id:'gw52',name:'GW 52°'}
-    ]},
-    {group:'Sand Wedge',lofts:[
-      {id:'sw54',name:'SW 54°'},
-      {id:'sw56',name:'SW 56°'},
-      {id:'sw58',name:'SW 58°'}
-    ]},
-    {group:'Lob Wedge',lofts:[
-      {id:'lw58',name:'LW 58°'},
-      {id:'lw60',name:'LW 60°'},
-      {id:'lw62',name:'LW 62°'},
-      {id:'lw64',name:'LW 64°'}
-    ]}
-  ];
+  var lofts=[42,44,46,48,50,52,54,56,58,60];
 
   var existing=document.getElementById('wedge-mo');if(existing)existing.remove();
   var div=document.createElement('div');
@@ -5281,20 +5375,18 @@ function addStandardWedges(playerId){
   div.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:400;align-items:flex-end;padding:0';
   var html='<div style="background:#fff;border-radius:20px 20px 0 0;padding:20px;width:100%;max-height:85vh;overflow-y:auto">';
   html+='<div style="font-weight:800;font-size:17px;margin-bottom:4px">⚡ Ajouter des wedges</div>';
-  html+='<div style="font-size:12px;color:#64748b;margin-bottom:14px">Choisis les lofts que tu as dans ton sac. Tu pourras les renommer ensuite.</div>';
-  wedgeCatalog.forEach(cat=>{
-    html+='<div class="ct" style="margin-top:10px;font-size:13px">'+cat.group+'</div>';
-    html+='<div class="f g8" style="flex-wrap:wrap;margin-bottom:6px">';
-    cat.lofts.forEach(l=>{
-      var already=existingIds.has(l.id);
-      html+='<button class="btn bsm mb0" style="flex:1 1 45%;'+(already?'background:#d1fae5;color:#065f46;border-color:#10b981':'')+'" onclick="addSingleWedge(\''+playerId+'\',\''+l.id+'\',\''+l.name+'\');this.textContent=\'✅ '+l.name+'\';this.style.background=\'#d1fae5\';this.style.color=\'#065f46\'" '+(already?'disabled':'')+'>'+(already?'✅ ':'➕ ')+l.name+'</button>';
-    });
-    html+='</div>';
+  html+='<div style="font-size:12px;color:#64748b;margin-bottom:14px">Choisis les lofts que tu as dans ton sac (42° à 60°).</div>';
+  html+='<div class="f g8" style="flex-wrap:wrap;margin-bottom:6px">';
+  lofts.forEach(function(loft){
+    var already=existingLofts.has(loft);
+    html+='<button class="btn bsm mb0" style="flex:1 1 30%;'+(already?'background:#d1fae5;color:#065f46;border-color:#10b981':'')+'" onclick="addSingleWedge(\''+playerId+'\',\'w'+loft+'\',\''+loft+'°\');this.textContent=\'✅ '+loft+'°\';this.style.background=\'#d1fae5\';this.style.color=\'#065f46\'" '+(already?'disabled':'')+'>'+(already?'✅ ':'➕ ')+loft+'°</button>';
   });
+  html+='</div>';
   html+='<div class="f11 tm mt8" style="padding:10px;background:#f8fafc;border-radius:10px">';
-  html+='💡 Les <b>angles de loft</b> courants : plus le loft est grand, plus la balle monte haut et va court.<br>';
-  html+='• <b>PW</b> : approches longues · <b>GW/AW</b> : mi-approches<br>';
-  html+='• <b>SW</b> : bunkers et lobs moyens · <b>LW</b> : lobs courts et sorties difficiles</div>';
+  html+='💡 Repères courants :<br>';
+  html+='• <b>42°-48°</b> : pitching / gap — approches longues à moyennes<br>';
+  html+='• <b>50°-54°</b> : mi-approches et contrôle<br>';
+  html+='• <b>56°-60°</b> : bunkers, lobs et sorties difficiles</div>';
   html+='<button class="btn bo mt8" onclick="document.getElementById(\'wedge-mo\').remove();render()">Terminé</button>';
   html+='</div>';
   div.innerHTML=html;
@@ -5304,7 +5396,8 @@ function addSingleWedge(playerId,id,name){
   var p=pById(playerId);if(!p)return;
   if(!p.clubs)p.clubs=[];
   if(p.clubs.find(c=>c.id===id))return;
-  p.clubs.push({id:id,name:name,icon:'⚡',full:null,threeQ:null,half:null,custom:true});
+  p.clubs.push({id:id,name:name,icon:'⚡',_iconCat:'wedge',full:null,threeQ:null,half:null,custom:true});
+  sortPlayerClubs(p);
   save();
 }
 function resetClubs(pid){
