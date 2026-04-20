@@ -5187,6 +5187,29 @@ function isChipClub(club){
 }
 // Distances putting de référence (sur green plat + normal)
 var PUTT_REF=[3,5,8,12,20];
+// Repères d'étalonnage backstroke (nom du repère)
+var PUTT_LANDMARKS=[
+  {key:'inside',icon:'🦵',label:'Intérieur du pied',sub:'Backswing court, s\'arrête à l\'intérieur du pied arrière'},
+  {key:'outside',icon:'🦶',label:'Extérieur du pied',sub:'Backswing moyen, s\'arrête à l\'extérieur du pied arrière'},
+  {key:'outside1',icon:'👣',label:'Un pied à l\'extérieur',sub:'Backswing long, dépasse d\'un pied le pied arrière'}
+];
+function getPuttCal(p){
+  if(!p.puttCal)p.puttCal={inside:null,outside:null,outside1:null};
+  return p.puttCal;
+}
+function setPuttCal(playerId,key){
+  var p=pById(playerId);if(!p)return;
+  var cal=getPuttCal(p);
+  var cur=cal[key]||'';
+  var v=prompt('Distance parcourue au practice (green plat + normal) en mètres :\n\n'+
+    (PUTT_LANDMARKS.find(l=>l.key===key)||{}).label+'\n\n'+
+    'Entre la distance en mètres (ex : 5.5) :',cur);
+  if(v===null)return;
+  var n=parseFloat((v||'').toString().replace(',','.'));
+  if(isNaN(n)||n<=0||n>50){if(v!=='')alert('Valeur invalide (0 à 50 m).');cal[key]=null;}
+  else cal[key]=Math.round(n*10)/10;
+  save();render();
+}
 function petitJeuView(){
   var p=getMePlayer()||DB.players.find(pl=>pl.id===S.clubsPlayerId);
   if(!p)return clubsView();
@@ -5252,36 +5275,77 @@ function petitJeuView(){
   </div>`;
 
   // ── Onglet Putting ──
-  // Idée : pour putter D mètres sur un green aux conditions actuelles,
-  // on doit frapper comme on frapperait pour D/fact mètres sur plat+normal.
-  var puttTable=`
-  <div class="card" style="overflow-x:auto;padding:10px">
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
+  var cal=getPuttCal(p);
+  var hasCal=PUTT_LANDMARKS.some(l=>cal[l.key]);
+
+  var calCards=PUTT_LANDMARKS.map(function(l){
+    var v=cal[l.key];
+    var adjusted=v?Math.round(v*fact*10)/10:null;
+    return `<div class="card" style="padding:12px">
+      <div class="f fc g8">
+        <div style="font-size:26px">${l.icon}</div>
+        <div style="flex:1">
+          <div class="fw7 f13">${l.label}</div>
+          <div class="f11 tm">${l.sub}</div>
+        </div>
+        <button class="btn bsm bo mb0" onclick="setPuttCal('${p.id}','${l.key}')">${v?'✏️':'➕'} ${v?'Modifier':'Étalonner'}</button>
+      </div>
+      ${v?`<div class="rb mt8" style="padding:8px;background:#faf5ff;border-radius:8px">
+        <div><div class="f11 tm">Plat + normal (ref)</div><div class="fw7 f14">${v} m</div></div>
+        <div style="text-align:right"><div class="f11 tm">Conditions actuelles</div><div class="fw7 f16" style="color:#7c3aed">${adjusted} m</div></div>
+      </div>`:`<div class="f11 tm mt8" style="padding:8px;background:#fef3c7;border-radius:8px">⚠️ Non étalonné — tape au practice pour mesurer la distance typique de ce backswing.</div>`}
+    </div>`;
+  }).join('');
+
+  // Tableau inverse : distance voulue → repère à utiliser (plus proche)
+  var calEntries=PUTT_LANDMARKS.filter(l=>cal[l.key]).map(l=>({...l,dist:cal[l.key],adj:cal[l.key]*fact}));
+  var reverseTable=calEntries.length>=2?`
+  <div class="card" style="overflow-x:auto;padding:10px;margin-top:8px">
+    <div class="ct">🎯 Quelle amplitude pour une distance voulue ?</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:6px">
       <thead><tr style="border-bottom:2px solid #e2e8f0">
-        <th style="padding:8px;text-align:left">Distance à parcourir</th>
-        <th style="padding:8px;text-align:center">Frapper comme</th>
-        <th style="padding:8px;text-align:center">Écart</th>
+        <th style="padding:6px;text-align:left">Distance voulue</th>
+        <th style="padding:6px;text-align:center">Repère conseillé</th>
       </tr></thead>
       <tbody>
         ${PUTT_REF.map(function(d){
-          var aim=fact>0?Math.round((d/fact)*10)/10:d;
-          var diff=Math.round((aim-d)*10)/10;
-          var sign=diff>0?'+':'';
-          var color=diff>0?'#b91c1c':(diff<0?'#166534':'#64748b');
+          // Trouve le repère dont la distance ajustée est la plus proche
+          var best=calEntries.reduce(function(b,e){
+            var diff=Math.abs(e.adj-d);
+            return (!b||diff<b.diff)?{e:e,diff:diff}:b;
+          },null);
+          if(!best)return '';
+          var pct=best.e.adj>0?Math.round((d/best.e.adj)*100):100;
+          var hint=pct>110?'légèrement plus fort':pct<90?'légèrement plus doux':'idem repère';
           return `<tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px;font-weight:700">🎯 ${d} m</td>
-            <td style="padding:8px;text-align:center"><div class="fw7" style="color:#7c3aed">${aim} m</div><div class="f11 tm">sur plat + normal</div></td>
-            <td style="padding:8px;text-align:center;color:${color};font-weight:700">${sign}${diff} m</td>
+            <td style="padding:6px;font-weight:700">🎯 ${d} m</td>
+            <td style="padding:6px;text-align:center"><div class="fw7">${best.e.icon} ${esc(best.e.label)}</div><div class="f11 tm">${pct}% (${hint})</div></td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
-  </div>
-  <div class="f11 tm mt8" style="padding:10px;background:#faf5ff;border-radius:10px;line-height:1.5">
-    ℹ️ <b>Putting</b> — pour parcourir une distance D sur les conditions actuelles,<br>
-    frappe comme si tu voulais faire <b>D ÷ ${fact.toFixed(2)}</b> sur un green plat et normal.<br>
-    💡 Exemple : si tu sais doser un putt de 5 m sur plat normal, en descente rapide ton putt donnera ~${Math.round(5*fact*10)/10} m pour le même dosage.
+  </div>`:'';
+
+  var helpBox=`
+  <div class="card" style="padding:12px;background:#faf5ff;border-left:4px solid #7c3aed">
+    <div class="ct">📘 Comment s'étalonner au practice</div>
+    <ol class="f13 tm" style="padding-left:18px;line-height:1.7;margin:0">
+      <li>Trouve une zone plate du <b>green de putting</b>.</li>
+      <li>Prends ton stance habituel de putt.</li>
+      <li>Fais 3 séries de 5 putts en contrôlant uniquement la longueur du backswing :
+        <ul style="padding-left:14px;margin:4px 0">
+          <li>🦵 Le putter s'arrête à l'<b>intérieur</b> du pied arrière.</li>
+          <li>🦶 Le putter s'arrête à l'<b>extérieur</b> du pied arrière.</li>
+          <li>👣 Le putter dépasse d'<b>un pied à l'extérieur</b>.</li>
+        </ul>
+      </li>
+      <li>Compte les pas de la balle (1 pas ≈ 0,9 m) et note la moyenne des 5 putts.</li>
+      <li>Clique sur ✏️/➕ pour enregistrer chaque repère.</li>
+    </ol>
+    <div class="f11 tm mt8">💡 Sur le parcours, ajuste uniquement selon vitesse du green et pente — ton geste reste le même.</div>
   </div>`;
+
+  var puttTable=`${calCards}${reverseTable}${helpBox}`;
 
   return `<div class="hdr"><button class="back" onclick="go('clubs')">‹</button><h1>🪶 Petit jeu</h1></div>
   <div class="content an">
