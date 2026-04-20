@@ -9818,6 +9818,8 @@ function openTrainingModal(sessionIdx){
     focuses:existing?(existing.focuses||[]).slice():[],
     counters:existing?Object.assign({},existing.counters||{}):{},
     notes:existing?(existing.notes||''):'',
+    linkedGameId:existing?(existing.linkedGameId||null):null,
+    linkedGameDate:existing?(existing.linkedGameDate||null):null,
     _idx:sessionIdx
   };
   renderTrainingModal();
@@ -9923,6 +9925,7 @@ function saveTrainingSession(){
     rating:f.rating||0,focuses:f.focuses||[],counters:f.counters||{},
     notes:f.notes||''
   };
+  if(f.linkedGameId){entry.linkedGameId=f.linkedGameId;entry.linkedGameDate=f.linkedGameDate;}
   if(f._idx!=null)DB.practice[f._idx]=entry;
   else DB.practice.push(entry);
   save();
