@@ -5189,6 +5189,9 @@ function clubsChipEditView(){
         <button class="btn bsm mb0" style="background:rgba(255,255,255,.25);color:#fff;border:1px solid rgba(255,255,255,.4);padding:10px 14px" onclick="S.chipEditMode=${!unlocked};render()">${unlocked?'🔒':'🔓'}</button>
       </div>
     </div>
+    <div class="f11 tm" style="margin-top:10px;padding:10px;background:#f0fdf4;border-left:3px solid #16a34a;border-radius:8px">
+      📏 <b>Toutes les distances sont en mètres</b>.
+    </div>
     <div class="f11 tm" style="margin-top:10px;padding:10px;background:#faf5ff;border-radius:10px;line-height:1.6">
       📘 <b>Méthode</b> : au practice, sur green plat + normal, frappe des séries avec ces amplitudes de backswing :<br>
       • <b>½ coup</b> : backswing s'arrête à hauteur de hanche<br>
@@ -5211,9 +5214,9 @@ function clubsChipEditView(){
           <div style="flex:1"><div class="fw7 f14">${esc(c.name)}</div></div>
         </div>
         <div class="f g8">
-          ${inp('two','½ coup (m)')}
-          ${inp('three','⅓ coup (m)')}
-          ${inp('four','¼ coup (m)')}
+          ${inp('two','½ coup')}
+          ${inp('three','⅓ coup')}
+          ${inp('four','¼ coup')}
         </div>
       </div>`;
     }).join('')}
@@ -5528,8 +5531,8 @@ function clubsEditView(){
       </div>
     </div>
 
-    <div class="f11 tm" style="margin-bottom:10px;padding:10px;background:#f8fafc;border-radius:10px">
-      Saisis tes distances en <b>mètres</b> à conditions idéales (~20°C, pas de vent).<br>
+    <div class="f11 tm" style="margin-bottom:10px;padding:10px;background:#f0fdf4;border-left:3px solid #16a34a;border-radius:8px">
+      📏 <b>Toutes les distances sont en mètres</b> — à conditions idéales (~20°C, pas de vent).<br>
       💡 Laisse vide les clubs que tu ne possèdes pas ou que tu ne joues pas à 3/4 ou 1/2.
     </div>
 
@@ -5554,13 +5557,13 @@ function clubsEditView(){
         ${unlocked?`<button class="btn bxs bd mb0" style="padding:4px 8px" onclick="removeClub('${p.id}','${c.id}')" title="Supprimer ce club">🗑</button>`:''}
       </div>
       <div class="f g8">
-        <div class="fg mb0" style="flex:1"><label class="lbl">Plein coup (m)</label>
+        <div class="fg mb0" style="flex:1"><label class="lbl" style="white-space:nowrap">Plein coup</label>
           <input type="number" class="inp" min="0" max="400" value="${c.full??''}" ${unlocked?'':'readonly'} style="${!unlocked?'background:#f1f5f9;cursor:not-allowed':''}" onchange="if(${unlocked}){DB.players.find(pl=>pl.id==='${p.id}').clubs[${i}].full=parseInt(this.value)||null;save()}" placeholder="–">
         </div>
-        <div class="fg mb0" style="flex:1"><label class="lbl">¾ de coup (m)</label>
+        <div class="fg mb0" style="flex:1"><label class="lbl" style="white-space:nowrap">¾ de coup</label>
           <input type="number" class="inp" min="0" max="400" value="${c.threeQ??''}" ${unlocked?'':'readonly'} style="${!unlocked?'background:#f1f5f9;cursor:not-allowed':''}" onchange="if(${unlocked}){DB.players.find(pl=>pl.id==='${p.id}').clubs[${i}].threeQ=parseInt(this.value)||null;save()}" placeholder="–">
         </div>
-        <div class="fg mb0" style="flex:1"><label class="lbl">½ coup (m)</label>
+        <div class="fg mb0" style="flex:1"><label class="lbl" style="white-space:nowrap">½ coup</label>
           <input type="number" class="inp" min="0" max="400" value="${c.half??''}" ${unlocked?'':'readonly'} style="${!unlocked?'background:#f1f5f9;cursor:not-allowed':''}" onchange="if(${unlocked}){DB.players.find(pl=>pl.id==='${p.id}').clubs[${i}].half=parseInt(this.value)||null;save()}" placeholder="–">
         </div>
       </div>
