@@ -827,7 +827,7 @@ function defHoles(){
 let S={view:DB.game?'playing':'home',setup:{},ec:null,tab:0,rulesGame:null};window.S=S;
 
 // ══ RENDER ════════════════════════════════════════════════════════════════
-const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView,clubs:clubsView,clubsEdit:clubsEditView,clubsCalc:clubsCalcView,clubsAdvisor:clubsAdvisorView,petitJeu:petitJeuView,allGlobalPlayers:allGlobalPlayersView};
+const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView,clubs:clubsView,clubsEdit:clubsEditView,clubsCalc:clubsCalcView,clubsAdvisor:clubsAdvisorView,petitJeu:petitJeuView,clubsChipEdit:clubsChipEditView,allGlobalPlayers:allGlobalPlayersView};
 const APP_FOOTER='<div style="text-align:center;padding:18px 0 10px;color:#94a3b8;font-size:12px" ondblclick="activateSuperAdmin()">⛳ Ça Swingue Manager <b>v14</b> · © 2026 Virnaoned</div>';
 function render(){
   const f=VIEWS[S.view];
@@ -5158,6 +5158,71 @@ function clubsView(){
   </div>`;
 }
 
+// ══ 🪶 CHIPPING : DONNÉES SPÉCIFIQUES (distinct des pleins coups) ═══════
+// Chaque club d'approche (fer 9 + wedges) peut avoir c.chip = {two:X, three:Y, four:Z}
+// en mètres sur green plat + normal (technique chipping : backswing court, poignets bloqués).
+function getClubChip(c){
+  if(!c.chip)c.chip={two:null,three:null,four:null};
+  return c.chip;
+}
+function clubsChipEditView(){
+  var p=getMePlayer()||DB.players.find(pl=>pl.id===S.clubsPlayerId);
+  if(!p)return clubsView();
+  var clubs=getPlayerClubs(p).filter(isChipClub);
+  clubs.sort(function(a,b){
+    var ka=clubCategory(a)==='fer'?0:1;
+    var kb=clubCategory(b)==='fer'?0:1;
+    if(ka!==kb)return ka-kb;
+    var la=(a.name.match(/(\d{2})\s*°/)||[0,99])[1];
+    var lb=(b.name.match(/(\d{2})\s*°/)||[0,99])[1];
+    return parseInt(la,10)-parseInt(lb,10);
+  });
+  if(S.chipEditMode==null)S.chipEditMode=false;
+  var unlocked=S.chipEditMode;
+  return `<div class="hdr"><button class="back" onclick="S.chipEditMode=false;go('petitJeu')">‹</button><h1>${unlocked?'🔓':'🔒'} Chipping · ${esc(p.name)}</h1></div>
+  <div class="content an">
+    <div class="card" style="background:${unlocked?'linear-gradient(135deg,#d97706,#f59e0b)':'linear-gradient(135deg,#7c3aed,#a855f7)'};color:#fff;padding:14px">
+      <div class="f fc g8">
+        <div style="font-size:28px">🪶</div>
+        <div style="flex:1">
+          <div class="fw8 f14">${unlocked?'Mode édition':'Distances chipping'}</div>
+          <div class="f12" style="opacity:.9">${unlocked?'Saisis tes distances chippées (green plat + normal)':'Technique courte : poignets bloqués, backswing ½, ⅓, ¼'}</div>
+        </div>
+        <button class="btn bsm mb0" style="background:rgba(255,255,255,.25);color:#fff;border:1px solid rgba(255,255,255,.4);padding:10px 14px" onclick="S.chipEditMode=${!unlocked};render()">${unlocked?'🔒':'🔓'}</button>
+      </div>
+    </div>
+    <div class="f11 tm" style="margin-top:10px;padding:10px;background:#faf5ff;border-radius:10px;line-height:1.6">
+      📘 <b>Méthode</b> : au practice, sur green plat + normal, frappe des séries avec ces amplitudes de backswing :<br>
+      • <b>½ coup</b> : backswing s'arrête à hauteur de hanche<br>
+      • <b>⅓ coup</b> : backswing s'arrête à mi-cuisse<br>
+      • <b>¼ coup</b> : backswing très court, au-dessus de la balle<br>
+      Note la distance parcourue (balle au repos final, roulement inclus).
+    </div>
+    ${clubs.map(function(c){
+      var ch=getClubChip(c);
+      var inp=function(key,label){
+        var val=ch[key]??'';
+        return `<div class="fg mb0" style="flex:1">
+          <label class="lbl" style="font-size:10px">${label}</label>
+          <input type="number" class="inp" min="0" max="150" step="0.5" value="${val}" ${unlocked?'':'readonly'} style="${!unlocked?'background:#f1f5f9;cursor:not-allowed':''}" onchange="if(${unlocked}){var c=DB.players.find(pl=>pl.id==='${p.id}').clubs.find(cl=>cl.id==='${c.id}');if(!c.chip)c.chip={};c.chip.${key}=parseFloat(this.value)||null;save()}" placeholder="–">
+        </div>`;
+      };
+      return `<div class="card" style="padding:12px;${!unlocked?'opacity:.9':''}">
+        <div class="f fc g8 mb0" style="margin-bottom:8px">
+          <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center">${clubIconHtml(c,22)}</div>
+          <div style="flex:1"><div class="fw7 f14">${esc(c.name)}</div></div>
+        </div>
+        <div class="f g8">
+          ${inp('two','½ coup (m)')}
+          ${inp('three','⅓ coup (m)')}
+          ${inp('four','¼ coup (m)')}
+        </div>
+      </div>`;
+    }).join('')}
+    <button class="btn bp mt8" onclick="S.chipEditMode=false;go('petitJeu')">✅ Terminer</button>
+  </div>`;
+}
+
 // ══ 🪶 APPROCHES ROULÉES (fer 9 → 60°) ═══════════════════════════════════
 // Facteurs spécifiques approches roulées (pas de météo) : green + pente
 function chipGreenFactor(s){ // s ∈ {'lent','normal','rapide'}
@@ -5236,42 +5301,54 @@ function petitJeuView(){
     var lb=(b.name.match(/(\d{2})\s*°/)||[0,99])[1];
     return parseInt(la,10)-parseInt(lb,10);
   });
-  var hasAny=chipClubs.some(c=>c.threeQ||c.half||c.full);
+  var hasChipData=chipClubs.some(c=>{var ch=c.chip||{};return ch.two||ch.three||ch.four;});
+  var hasFullData=chipClubs.some(c=>c.threeQ||c.half||c.full);
 
-  var chipTable=!hasAny?`<div class="card"><div class="empty" style="padding:20px">
+  var chipEditBtn=`<button class="btn bsm bo mb8" onclick="go('clubsChipEdit')">✏️ Étalonner mes distances chipping</button>`;
+
+  var chipTable=(!hasChipData&&!hasFullData)?`<div class="card"><div class="empty" style="padding:20px">
     <div class="ei">📏</div>
-    <p class="f13">Aucune distance saisie pour Fer 9 ni wedges</p>
-    <button class="btn bp mt8" onclick="go('clubsEdit')">Saisir mes distances</button>
+    <p class="f13">Aucune distance saisie</p>
+    <button class="btn bp mt8" onclick="go('clubsChipEdit')">Étalonner au practice</button>
+    <button class="btn bo mt8" onclick="go('clubsEdit')">ou saisir les pleins coups</button>
   </div></div>`:`
+  ${chipEditBtn}
   <div class="card" style="overflow-x:auto;padding:10px">
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="border-bottom:2px solid #e2e8f0">
         <th style="padding:8px;text-align:left">Club</th>
+        <th style="padding:8px;text-align:center">¼ coup</th>
         <th style="padding:8px;text-align:center">⅓ coup</th>
         <th style="padding:8px;text-align:center">½ coup</th>
       </tr></thead>
       <tbody>
         ${chipClubs.map(function(c){
-          var oneThird=c.threeQ?Math.round(c.threeQ*0.60):(c.full?Math.round(c.full*0.40):null);
-          var half=c.half;
-          var c13=chipAdjust(oneThird,green,slope);
-          var c12=chipAdjust(half,green,slope);
-          var cell=function(adj,ref){
+          var ch=c.chip||{};
+          // ½, ⅓, ¼ : utilise chip.* si saisi, sinon estime depuis plein coup
+          var v2=ch.two||(c.half?c.half:(c.full?Math.round(c.full*0.55):null));
+          var v3=ch.three||(c.threeQ?Math.round(c.threeQ*0.55):(c.full?Math.round(c.full*0.38):null));
+          var v4=ch.four||(c.full?Math.round(c.full*0.25):(c.half?Math.round(c.half*0.5):null));
+          var src2=ch.two?'📏':'≈';var src3=ch.three?'📏':'≈';var src4=ch.four?'📏':'≈';
+          var a2=chipAdjust(v2,green,slope);
+          var a3=chipAdjust(v3,green,slope);
+          var a4=chipAdjust(v4,green,slope);
+          var cell=function(adj,ref,src){
             if(!adj)return '<div class="tm">–</div>';
-            return '<div class="fw7" style="color:#7c3aed">'+adj+' m</div><div class="f11 tm">ref '+ref+' m</div>';
+            return '<div class="fw7" style="color:#7c3aed">'+adj+' m</div><div class="f11 tm">'+src+' '+ref+' m</div>';
           };
           return `<tr style="border-bottom:1px solid #f1f5f9">
             <td style="padding:8px;font-weight:700">${clubIconHtml(c,18)} ${esc(c.name)}</td>
-            <td style="padding:8px;text-align:center">${cell(c13,oneThird)}</td>
-            <td style="padding:8px;text-align:center">${cell(c12,half)}</td>
+            <td style="padding:8px;text-align:center">${cell(a4,v4,src4)}</td>
+            <td style="padding:8px;text-align:center">${cell(a3,v3,src3)}</td>
+            <td style="padding:8px;text-align:center">${cell(a2,v2,src2)}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
   </div>
   <div class="f11 tm mt8" style="padding:10px;background:#faf5ff;border-radius:10px;line-height:1.5">
-    ℹ️ On multiplie la distance de référence (plat + green normal) par les deux facteurs.<br>
-    ⅓ coup estimé = 60% du ¾ (ou 40% du plein) si tu ne l'as pas saisi dans tes clubs.
+    <b>📏</b> = distance mesurée au practice (valeur exacte) · <b>≈</b> = estimation depuis ton plein coup.<br>
+    Clique ✏️ pour étalonner précisément chaque club (technique chipping = poignets bloqués, backswing court).
   </div>`;
 
   // ── Onglet Putting ──
