@@ -9401,43 +9401,236 @@ function achievementsView(){
 }
 
 // ══ PRACTICE / ENTRAÎNEMENT ═══════════════════════════════════════════════
+// ══ 🎯 SUIVI D'ENTRAÎNEMENT ═══════════════════════════════════════════════
+var TRAINING_TYPES=[
+  {key:'practice',icon:'🏌️',label:'Practice',color:'#16a34a'},
+  {key:'putting',icon:'🟢',label:'Putting',color:'#059669'},
+  {key:'chipping',icon:'🪶',label:'Chipping',color:'#7c3aed'},
+  {key:'course',icon:'⛳',label:'Parcours',color:'#0891b2'},
+  {key:'fitness',icon:'💪',label:'Physique',color:'#dc2626'},
+  {key:'rules',icon:'📚',label:'Règles',color:'#d97706'}
+];
+var TRAINING_FOCUSES=[
+  'Grip','Posture','Alignement','Tempo','Plan de swing','Finition',
+  'Distance control','Direction','Putting ligne','Putting vitesse',
+  'Chipping roulé','Chipping lobé','Bunker','Sortie rough','Mental','Routine'
+];
+function trainingTypeInfo(key){return TRAINING_TYPES.find(t=>t.key===key)||{icon:'🎯',label:key||'Session',color:'#64748b'};}
+
 function practiceView(){
   if(!DB.practice)DB.practice=[];
-  const sorted=[...DB.practice].sort((a,b)=>b.date-a.date);
-  return`<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>🎯 Entraînement</h1>
-    <button class="ha" onclick="addPracticeSession()">＋</button>
+  var sorted=[...DB.practice].sort((a,b)=>b.date-a.date);
+  // Stats dashboard 30j
+  var now=Date.now(),h30=30*24*3600*1000;
+  var last30=DB.practice.filter(s=>s.date&&(now-s.date)<=h30);
+  var totalMin=last30.reduce((s,x)=>s+(parseInt(x.duration)||0),0);
+  var byType={};last30.forEach(s=>{byType[s.type]=(byType[s.type]||0)+1;});
+  var lastDt=sorted[0]?new Date(sorted[0].date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):null;
+
+  return `<div class="hdr"><button class="back" onclick="go('home')">‹</button><h1>🎯 Suivi d'entraînement</h1>
+    <button class="ha" onclick="openTrainingModal()">＋</button>
   </div>
   <div class="content an">
     <div class="card" style="background:linear-gradient(135deg,#7c3aed,#4338ca);color:#fff">
       <div class="f fc g8"><div style="font-size:32px">🎯</div>
-        <div><div class="fw8 f14">Suivi de pratique</div><div class="f12" style="opacity:.9">Enregistre tes sessions de practice, putting, chipping</div></div>
+        <div style="flex:1"><div class="fw8 f14">Suivi d'entraînement</div><div class="f12" style="opacity:.9">Tes sessions practice, putting, chipping, parcours</div></div>
       </div>
     </div>
-    ${sorted.length===0?`<div class="empty"><div class="ei">🎯</div>Aucune session d'entraînement<br><button class="btn bp mt8" onclick="addPracticeSession()">＋ Première session</button></div>`:
-    sorted.map((s,ri)=>{const realIdx=DB.practice.indexOf(s);
-    const dt=new Date(s.date).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
-    return`<div class="card"><div class="f" style="justify-content:space-between"><div style="flex:1"><div class="fw7 f14">${esc(s.type||'Session')}</div><div class="f11 tm">${dt} · ${s.duration||'–'} min</div>
-      ${s.notes?`<div class="f12" style="margin-top:6px;color:#334155">${esc(s.notes)}</div>`:''}
+
+    <div class="card" style="padding:12px">
+      <div class="ct">📊 Dashboard — 30 jours</div>
       <div class="f g8 mt8" style="flex-wrap:wrap">
-        ${s.stats?Object.entries(s.stats).map(([k,v])=>`<span class="badge bg">${k}: ${v}</span>`).join(''):''}
+        <div class="card" style="flex:1 1 30%;padding:10px;margin:0;background:#f0fdf4;border-left:3px solid #16a34a">
+          <div class="f11 tm">Sessions</div><div class="fw8 f18" style="color:#16a34a">${last30.length}</div>
+        </div>
+        <div class="card" style="flex:1 1 30%;padding:10px;margin:0;background:#faf5ff;border-left:3px solid #7c3aed">
+          <div class="f11 tm">Durée totale</div><div class="fw8 f18" style="color:#7c3aed">${Math.floor(totalMin/60)}h${(totalMin%60).toString().padStart(2,'0')}</div>
+        </div>
+        <div class="card" style="flex:1 1 30%;padding:10px;margin:0;background:#fef3c7;border-left:3px solid #d97706">
+          <div class="f11 tm">Dernière</div><div class="fw7 f13" style="color:#92400e">${lastDt||'—'}</div>
+        </div>
       </div>
+      ${Object.keys(byType).length?`<div class="f g8 mt8" style="flex-wrap:wrap">
+        ${TRAINING_TYPES.map(t=>{
+          var n=byType[t.key]||0;
+          if(n===0)return '';
+          return `<span class="badge bg" style="background:${t.color};color:#fff;padding:6px 10px;font-size:11px">${t.icon} ${t.label} · ${n}</span>`;
+        }).join('')}
+      </div>`:''}
     </div>
-      <button class="btn bsm bd mb0" style="width:auto" onclick="delPracticeSession(${realIdx})">🗑</button>
-    </div></div>`;}).join('')}
+
+    ${sorted.length===0?`<div class="empty"><div class="ei">🎯</div>Aucune session enregistrée<br><button class="btn bp mt8" onclick="openTrainingModal()">＋ Première session</button></div>`:
+    `<div class="st">Historique</div>`+sorted.map((s,ri)=>{
+      var realIdx=DB.practice.indexOf(s);
+      var dt=new Date(s.date).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+      var ti=trainingTypeInfo(s.type);
+      var rating=s.rating?'⭐'.repeat(Math.max(0,Math.min(5,s.rating))):'';
+      return `<div class="card" style="padding:12px">
+        <div class="f" style="justify-content:space-between;align-items:flex-start">
+          <div style="flex:1">
+            <div class="f fc g8 mb0"><div style="font-size:22px">${ti.icon}</div>
+              <div style="flex:1"><div class="fw7 f14" style="color:${ti.color}">${esc(ti.label)}</div>
+              <div class="f11 tm">${dt} · ${s.duration||'–'} min${s.location?' · '+esc(s.location):''}${rating?' · '+rating:''}</div></div>
+            </div>
+            ${s.focuses&&s.focuses.length?`<div class="f g8 mt8" style="flex-wrap:wrap">${s.focuses.map(f=>`<span class="badge bg" style="background:#e0e7ff;color:#3730a3;font-size:10px">${esc(f)}</span>`).join('')}</div>`:''}
+            ${s.counters?renderTrainingCounters(s):''}
+            ${s.stats?`<div class="f g8 mt8" style="flex-wrap:wrap">${Object.entries(s.stats).map(([k,v])=>`<span class="badge bg" style="font-size:10px">${esc(k)}: ${esc(String(v))}</span>`).join('')}</div>`:''}
+            ${s.notes?`<div class="f12" style="margin-top:8px;color:#334155;padding:8px;background:#f8fafc;border-radius:6px">${esc(s.notes)}</div>`:''}
+          </div>
+          <button class="btn bxs bd mb0" style="width:auto;padding:4px 8px" onclick="delPracticeSession(${realIdx})">🗑</button>
+        </div>
+      </div>`;}).join('')}
   </div>`;
 }
-function addPracticeSession(){
-  const type=prompt('Type de session (Practice / Putting / Chipping / Swing) :','Practice');
-  if(!type)return;
-  const dur=prompt('Durée en minutes :','30');
-  const notes=prompt('Notes (optionnel) :','');
-  const statsRaw=prompt('Stats (ex: balles:50 · greens:15 · fairways:10) :','');
-  const stats={};
-  if(statsRaw){statsRaw.split(/[·,]/).forEach(p=>{const [k,v]=p.split(':').map(x=>x.trim());if(k&&v)stats[k]=v;});}
-  if(!DB.practice)DB.practice=[];
-  DB.practice.push({date:Date.now(),type,duration:parseInt(dur)||0,notes:notes||'',stats});
-  save();render();
+
+function renderTrainingCounters(s){
+  if(!s.counters||Object.keys(s.counters).length===0)return '';
+  var c=s.counters;
+  var items=[];
+  if(s.type==='practice'){
+    if(c.balls)items.push('🎯 '+c.balls+' balles');
+    if(c.goodPct!=null)items.push('✅ '+c.goodPct+'% bons contacts');
+  }else if(s.type==='putting'){
+    var tried=(c.shortTried||0)+(c.medTried||0)+(c.longTried||0);
+    var made=(c.shortMade||0)+(c.medMade||0)+(c.longMade||0);
+    if(tried)items.push('⛳ '+made+'/'+tried+' rentrés');
+    if(c.shortTried)items.push('Court: '+(c.shortMade||0)+'/'+c.shortTried);
+    if(c.medTried)items.push('Moyen: '+(c.medMade||0)+'/'+c.medTried);
+    if(c.longTried)items.push('Long: '+(c.longMade||0)+'/'+c.longTried);
+  }else if(s.type==='chipping'){
+    if(c.chipTried)items.push('🪶 '+(c.chipClose||0)+'/'+c.chipTried+' à <2m');
+  }
+  if(!items.length)return '';
+  return '<div class="f g8 mt8" style="flex-wrap:wrap">'+items.map(i=>'<span class="badge bg" style="background:#ddd6fe;color:#5b21b6;font-size:10px">'+i+'</span>').join('')+'</div>';
 }
+
+function openTrainingModal(sessionIdx){
+  if(!DB.practice)DB.practice=[];
+  var existing=sessionIdx!=null?DB.practice[sessionIdx]:null;
+  S._trainForm={
+    id:existing?(existing.id||('s'+Date.now())):('s'+Date.now()),
+    date:existing?existing.date:Date.now(),
+    type:existing?existing.type:'practice',
+    duration:existing?(existing.duration||30):30,
+    location:existing?(existing.location||''):'',
+    rating:existing?(existing.rating||0):0,
+    focuses:existing?(existing.focuses||[]).slice():[],
+    counters:existing?Object.assign({},existing.counters||{}):{},
+    notes:existing?(existing.notes||''):'',
+    _idx:sessionIdx
+  };
+  renderTrainingModal();
+}
+function renderTrainingModal(){
+  var f=S._trainForm;if(!f)return;
+  var existing=document.getElementById('train-mo');if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.id='train-mo';
+  div.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:400;align-items:flex-end;padding:0';
+
+  var dateStr=new Date(f.date).toISOString().slice(0,10);
+  var html='<div style="background:#fff;border-radius:20px 20px 0 0;padding:16px;width:100%;max-height:92vh;overflow-y:auto">';
+  html+='<div style="font-weight:800;font-size:17px;margin-bottom:12px">🎯 '+(f._idx!=null?'Modifier':'Nouvelle')+' session</div>';
+
+  // Type
+  html+='<div class="lbl">Type</div><div class="f g8 mb8" style="flex-wrap:wrap">';
+  TRAINING_TYPES.forEach(function(t){
+    var active=f.type===t.key;
+    html+='<button type="button" class="btn bsm mb0" style="flex:1 1 30%;padding:10px 6px;'+(active?'background:'+t.color+';color:#fff;border:none':'background:#fff;color:#475569;border:1px solid #cbd5e1')+'" onclick="S._trainForm.type=\''+t.key+'\';renderTrainingModal()"><div style="font-size:20px">'+t.icon+'</div><div style="font-size:11px">'+t.label+'</div></button>';
+  });
+  html+='</div>';
+
+  // Date + durée + lieu
+  html+='<div class="f g8 mb8">';
+  html+='<div class="fg mb0" style="flex:1"><label class="lbl">Date</label><input type="date" class="inp" value="'+dateStr+'" onchange="S._trainForm.date=new Date(this.value+\'T12:00\').getTime()"></div>';
+  html+='<div class="fg mb0" style="flex:1"><label class="lbl">Durée (min)</label><input type="number" class="inp" min="5" max="600" value="'+f.duration+'" onchange="S._trainForm.duration=parseInt(this.value)||0"></div>';
+  html+='</div>';
+  html+='<div class="fg mb8"><label class="lbl">Lieu (optionnel)</label><input type="text" class="inp" value="'+esc(f.location)+'" placeholder="ex : GCN, Vigneux…" onchange="S._trainForm.location=this.value"></div>';
+
+  // Ressenti
+  html+='<div class="lbl">Ressenti</div><div class="f g8 mb8">';
+  for(var r=1;r<=5;r++){
+    var sel=f.rating>=r;
+    html+='<button type="button" class="btn bsm mb0" style="flex:1;padding:10px;font-size:20px;'+(sel?'background:#fef3c7;border-color:#f59e0b;color:#92400e':'background:#fff;color:#cbd5e1;border:1px solid #cbd5e1')+'" onclick="S._trainForm.rating='+(f.rating===r?0:r)+';renderTrainingModal()">'+(sel?'⭐':'☆')+'</button>';
+  }
+  html+='</div>';
+
+  // Focus
+  html+='<div class="lbl">Focus travaillé (clique pour (dé)sélectionner)</div><div class="f g8 mb8" style="flex-wrap:wrap">';
+  TRAINING_FOCUSES.forEach(function(fc){
+    var on=f.focuses.indexOf(fc)>=0;
+    html+='<button type="button" class="btn bxs mb0" style="padding:6px 10px;font-size:11px;'+(on?'background:#e0e7ff;color:#3730a3;border:1px solid #6366f1':'background:#fff;color:#64748b;border:1px solid #cbd5e1')+'" onclick="toggleTrainingFocus(\''+fc+'\')">'+(on?'✓ ':'+')+' '+fc+'</button>';
+  });
+  html+='</div>';
+
+  // Compteurs spécifiques par type
+  html+=renderTrainingCountersForm(f);
+
+  // Notes
+  html+='<div class="fg mb8"><label class="lbl">Notes (optionnel)</label><textarea class="inp" rows="3" placeholder="Ce que j\'ai travaillé, observations…" onchange="S._trainForm.notes=this.value">'+esc(f.notes)+'</textarea></div>';
+
+  // Boutons
+  html+='<div class="f g8">';
+  html+='<button class="btn bo mb0" style="flex:1" onclick="document.getElementById(\'train-mo\').remove();S._trainForm=null">Annuler</button>';
+  html+='<button class="btn bp mb0" style="flex:2" onclick="saveTrainingSession()">✅ Enregistrer</button>';
+  html+='</div>';
+  html+='</div>';
+  div.innerHTML=html;
+  document.body.appendChild(div);
+}
+function renderTrainingCountersForm(f){
+  var c=f.counters||{};
+  var h='';
+  if(f.type==='practice'){
+    h+='<div class="lbl">Compteurs practice</div>';
+    h+='<div class="f g8 mb8">';
+    h+='<div class="fg mb0" style="flex:1"><label class="lbl" style="font-size:10px">Balles tapées</label><input type="number" class="inp" min="0" value="'+(c.balls||'')+'" placeholder="0" onchange="S._trainForm.counters.balls=parseInt(this.value)||0"></div>';
+    h+='<div class="fg mb0" style="flex:1"><label class="lbl" style="font-size:10px">% bons contacts</label><input type="number" class="inp" min="0" max="100" value="'+(c.goodPct!=null?c.goodPct:'')+'" placeholder="0" onchange="S._trainForm.counters.goodPct=parseInt(this.value)"></div>';
+    h+='</div>';
+  }else if(f.type==='putting'){
+    h+='<div class="lbl">Compteurs putting (rentrés / tentés)</div>';
+    h+='<div class="f g8 mb8">';
+    h+='<div class="fg mb0" style="flex:1"><label class="lbl" style="font-size:10px">Court (1-2m)</label><div class="f g8"><input type="number" class="inp" min="0" value="'+(c.shortMade||'')+'" placeholder="rentrés" onchange="S._trainForm.counters.shortMade=parseInt(this.value)||0"><input type="number" class="inp" min="0" value="'+(c.shortTried||'')+'" placeholder="tentés" onchange="S._trainForm.counters.shortTried=parseInt(this.value)||0"></div></div>';
+    h+='</div>';
+    h+='<div class="f g8 mb8">';
+    h+='<div class="fg mb0" style="flex:1"><label class="lbl" style="font-size:10px">Moyen (3-6m)</label><div class="f g8"><input type="number" class="inp" min="0" value="'+(c.medMade||'')+'" placeholder="rentrés" onchange="S._trainForm.counters.medMade=parseInt(this.value)||0"><input type="number" class="inp" min="0" value="'+(c.medTried||'')+'" placeholder="tentés" onchange="S._trainForm.counters.medTried=parseInt(this.value)||0"></div></div>';
+    h+='</div>';
+    h+='<div class="f g8 mb8">';
+    h+='<div class="fg mb0" style="flex:1"><label class="lbl" style="font-size:10px">Long (>6m)</label><div class="f g8"><input type="number" class="inp" min="0" value="'+(c.longMade||'')+'" placeholder="rentrés" onchange="S._trainForm.counters.longMade=parseInt(this.value)||0"><input type="number" class="inp" min="0" value="'+(c.longTried||'')+'" placeholder="tentés" onchange="S._trainForm.counters.longTried=parseInt(this.value)||0"></div></div>';
+    h+='</div>';
+  }else if(f.type==='chipping'){
+    h+='<div class="lbl">Compteurs chipping (à < 2m du drapeau)</div>';
+    h+='<div class="f g8 mb8">';
+    h+='<div class="fg mb0" style="flex:1"><label class="lbl" style="font-size:10px">Proches (<2m)</label><input type="number" class="inp" min="0" value="'+(c.chipClose||'')+'" placeholder="0" onchange="S._trainForm.counters.chipClose=parseInt(this.value)||0"></div>';
+    h+='<div class="fg mb0" style="flex:1"><label class="lbl" style="font-size:10px">Tentés</label><input type="number" class="inp" min="0" value="'+(c.chipTried||'')+'" placeholder="0" onchange="S._trainForm.counters.chipTried=parseInt(this.value)||0"></div>';
+    h+='</div>';
+  }
+  return h;
+}
+function toggleTrainingFocus(fc){
+  var f=S._trainForm;if(!f)return;
+  var i=f.focuses.indexOf(fc);
+  if(i>=0)f.focuses.splice(i,1);else f.focuses.push(fc);
+  renderTrainingModal();
+}
+function saveTrainingSession(){
+  var f=S._trainForm;if(!f)return;
+  if(!DB.practice)DB.practice=[];
+  var entry={
+    id:f.id,date:f.date||Date.now(),type:f.type||'practice',
+    duration:parseInt(f.duration)||0,location:f.location||'',
+    rating:f.rating||0,focuses:f.focuses||[],counters:f.counters||{},
+    notes:f.notes||''
+  };
+  if(f._idx!=null)DB.practice[f._idx]=entry;
+  else DB.practice.push(entry);
+  save();
+  document.getElementById('train-mo')?.remove();
+  S._trainForm=null;
+  render();
+}
+// Alias legacy (boutons existants)
+function addPracticeSession(){openTrainingModal();}
 function delPracticeSession(idx){
   conf('Supprimer cette session ?','',()=>{DB.practice.splice(idx,1);save();render();});
 }
