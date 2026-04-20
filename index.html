@@ -6111,18 +6111,11 @@ function buildShareText(g,pls,course){
   // ── Score de la partie selon le mode ────────────────────────────────────
   if(g.gameType==='matchplay'&&g.matchState){
     const ms=g.matchState;
-    if(ms.lead===null||ms.score===0){
-      txt+=`⚔️ *All square* (${holesLeft} trou${holesLeft!==1?'s':''} à jouer)\n\n`;
-    } else {
-      const lp=pls[ms.lead];const amt=Math.abs(ms.score);
-      if(ms.done){
-        const fhl=ms.finishHolesLeft??holesLeft;
-        txt+=`⚔️ *${lp.name} gagne ${amt}&${fhl}* 🏆\n\n`;
-      } else if(amt===holesLeft){
-        txt+=`⚔️ *${lp.name} est dormy ${amt}* (${holesLeft} trou${holesLeft!==1?'s':''} à jouer)\n\n`;
-      } else {
-        txt+=`⚔️ *${lp.name} mène ${amt} up* (${holesLeft} trou${holesLeft!==1?'s':''} à jouer)\n\n`;
-      }
+    const mpf=mpFinalScore(g,pls,hn+1);
+    if(mpf){
+      if(mpf.draw)txt+=`⚔️ *${mpf.label}*\n\n`;
+      else if(mpf.decided)txt+=`⚔️ *${mpf.winnerName} gagne ${mpf.label}* 🏆\n\n`;
+      else txt+=`⚔️ *${mpf.winnerName} mène ${mpf.label}*\n\n`;
     }
     pls.forEach((p,pi)=>{
       txt+=`• ${p.name}: ${ms.holesWon[pi]} trou${ms.holesWon[pi]!==1?'s':''} gagné${ms.holesWon[pi]!==1?'s':''}\n`;
@@ -6214,12 +6207,11 @@ function shareResults(){
   // Match play final
   if(g.gameType==='matchplay'&&g.matchState){
     const ms=g.matchState;const pls2=g.playerIds.map(id=>pById(id));
-    if(ms.lead===null||ms.score===0){
-      txt+=`⚔️ *Résultat : Partie nulle*\n\n`;
-    } else {
-      const lp=pls2[ms.lead];const amt=Math.abs(ms.score);
-      const fhl=ms.finishHolesLeft??0;
-      txt+=`⚔️ *${lp.name} gagne ${amt}&${fhl}* 🏆\n\n`;
+    const mpf=mpFinalScore(g,pls2);
+    if(mpf){
+      if(mpf.draw)txt+=`⚔️ *Résultat : ${mpf.label}*\n\n`;
+      else if(mpf.decided)txt+=`⚔️ *${mpf.winnerName} gagne ${mpf.label}* 🏆\n\n`;
+      else txt+=`⚔️ *${mpf.winnerName} ${mpf.label}*\n\n`;
     }
     pls2.forEach((p,pi)=>{if(p)txt+=`• ${p.name}: ${ms.holesWon[pi]} trou${ms.holesWon[pi]!==1?'s':''} gagné${ms.holesWon[pi]!==1?'s':''}\n`;});
     txt+=`\n🏌️ _Ça Swingue Manager_`;
@@ -6707,14 +6699,54 @@ function runTotals(g,pls,hn){
       `<span class="f12 tm">Brut : <b>${tots[pi].gr||'–'}</b></span>`}
     </div>`).join('')}
   </div>`}
+// Score final match play au format officiel (3&2, 1 up, AS, Dormie…)
+// Retourne {label, winnerName, winnerPi, draw, decided}
+function mpFinalScore(g,pls,hnOverride){
+  var ms=g.matchState;if(!ms)return null;
+  var nHoles=(cById(g.courseId)?.holes.length)||18;
+  // Nombre de trous joués = max hole index + 1 où il y a au moins 1 score saisi, ou currentHole
+  var hn=hnOverride!=null?hnOverride:(function(){
+    var n=0;
+    (g.scores||[]).forEach(function(hs,hi){if(hs&&hs.some(function(s){return s>0;}))n=hi+1;});
+    return n||(g.currentHole||0);
+  })();
+  var hl=nHoles-hn; // trous restants
+  var amt=Math.abs(ms.score||0);
+  var lead=ms.lead;
+  // Cas 1 : nul strict, match fini
+  if(amt===0&&hl<=0)return {label:'AS (all square)',winnerName:null,winnerPi:null,draw:true,decided:true};
+  // Cas 2 : match déjà scellé (avance > trous restants)
+  if(amt>hl&&lead!=null){
+    var lp=pls[lead];
+    return {label:amt+'&'+hl,winnerName:lp?lp.name:null,winnerPi:lead,draw:false,decided:true};
+  }
+  // Cas 3 : match fini à 18, décidé par N up
+  if(hl<=0&&amt>0&&lead!=null){
+    var lp2=pls[lead];
+    return {label:amt+' up',winnerName:lp2?lp2.name:null,winnerPi:lead,draw:false,decided:true};
+  }
+  // Cas 4 : en cours
+  if(amt===0)return {label:'AS thru '+hn,winnerName:null,winnerPi:null,draw:true,decided:false};
+  if(amt===hl&&lead!=null){
+    var lp3=pls[lead];
+    return {label:'Dormie '+amt,winnerName:lp3?lp3.name:null,winnerPi:lead,draw:false,decided:false};
+  }
+  var lp4=pls[lead];
+  return {label:amt+' up thru '+hn,winnerName:lp4?lp4.name:null,winnerPi:lead,draw:false,decided:false};
+}
 function mpStatus(g,pls,hn){
   const ms=g.matchState;if(!ms)return'';
-  const hl=18-hn;let txt='Partie nulle',bg='#1d4ed8';
-  if(ms.lead!==null&&ms.score!==0){const lp=pls[ms.lead];const amt=Math.abs(ms.score);
-    if(amt>hl){txt=`${esc(lp.name)} gagne ${amt}&${hl}`;bg='#14532d'}
-    else{txt=`${esc(lp.name)} mène ${amt} up`;bg=ms.lead===0?'#166534':'#991b1b'}}
+  const nHoles=(cById(g.courseId)?.holes.length)||18;
+  const hl=nHoles-hn;
+  const mpf=mpFinalScore(g,pls,hn);
+  let txt='All square',bg='#1d4ed8';
+  if(mpf){
+    if(mpf.draw)txt=mpf.label;
+    else if(mpf.decided){txt=`${esc(mpf.winnerName)} gagne ${mpf.label}`;bg='#14532d';}
+    else{txt=`${esc(mpf.winnerName)} ${mpf.label}`;bg=mpf.winnerPi===0?'#166534':'#991b1b';}
+  }
   return`<div class="gsc" style="background:${bg}"><div class="gsci">⚔️</div>
-    <div><div class="gscl">Match Play · ${hn} trous joués</div><div class="gscn">${txt}</div><div class="gscs">${hl} trou${hl!==1?'s':''} restant${hl!==1?'s':''}</div></div>
+    <div><div class="gscl">Match Play · ${hn} trou${hn!==1?'s':''} joué${hn!==1?'s':''}</div><div class="gscn">${txt}</div><div class="gscs">${hl} trou${hl!==1?'s':''} restant${hl!==1?'s':''}</div></div>
   </div><div class="card">${pls.map((p,pi)=>`<div class="sr">
     <div class="f fc g8"><div class="av avs" style="background:${gc(pi)};color:#fff">${ini(p.name)}</div><span class="fw7">${esc(p.name)}</span></div>
     <span class="fw7">${ms.holesWon[pi]} trou${ms.holesWon[pi]!==1?'s':''} gagné${ms.holesWon[pi]!==1?'s':''}</span>
@@ -7596,12 +7628,23 @@ function results(){
     `<button class="btn bp mb0" onclick="go('home')">🏠 Accueil</button>`}</div>
     ${!fromHistory?`<button class="btn bgr mt8" onclick="startSetup()">🏌️ Nouvelle partie</button>`:''}
   </div>`}
-function rScore(g,r){if(g.gameType==='stableford')return r.pts+' pts';if(['meilleurscore','scramble','foursome','patsome','fourball'].includes(g.gameType))return'Brut '+r.gr;if(g.gameType==='dbb'){const d=g.dbbState;const ti=g.teamAssign?.[r.p.id];const oti=ti===0?1:0;const tot=(d?.m1.hw[ti]||0)+(d?.m2.hw[ti]||0);const oth=(d?.m1.hw[oti]||0)+(d?.m2.hw[oti]||0);const diff=tot-oth;return diff>0?diff+' up':(diff<0?Math.abs(diff)+' down':'All square');}if(r.gpts!=null)return(r.gpts>0?'+':'')+r.gpts+(g.gameType==='nassau'?'€':' pts');if(g.gameType==='matchplay')return(g.matchState?.holesWon[r.pi]||0)+' trous';return'Net '+r.net}
+function rScore(g,r){if(g.gameType==='stableford')return r.pts+' pts';if(['meilleurscore','scramble','foursome','patsome','fourball'].includes(g.gameType))return'Brut '+r.gr;if(g.gameType==='dbb'){const d=g.dbbState;const ti=g.teamAssign?.[r.p.id];const oti=ti===0?1:0;const tot=(d?.m1.hw[ti]||0)+(d?.m2.hw[ti]||0);const oth=(d?.m1.hw[oti]||0)+(d?.m2.hw[oti]||0);const diff=tot-oth;return diff>0?diff+' up':(diff<0?Math.abs(diff)+' down':'All square');}if(r.gpts!=null)return(r.gpts>0?'+':'')+r.gpts+(g.gameType==='nassau'?'€':' pts');if(g.gameType==='matchplay'){var mpfr=mpFinalScore(g,g.playerIds.map(id=>pById(id)));if(mpfr){if(mpfr.draw)return mpfr.label;if(mpfr.winnerPi===r.pi)return'🏆 '+mpfr.label;return mpfr.label;}return(g.matchState?.holesWon[r.pi]||0)+' trous';}return'Net '+r.net}
 function rScoreFull(g,r){
   if(g.gameType==='stableford')return`<div class="fw7 tgold f14">${r.pts} pts</div>`;
   if(['meilleurscore','scramble','foursome','patsome','fourball'].includes(g.gameType)){const c2=cById(g.courseId);const par=c2?.holes.reduce((s,h)=>s+h.par,0)||72;const diff=r.gr-par;return`<div class="fw7 f14">Brut : ${r.gr}</div><div class="f11 tm">${diff>0?'+':''}${diff} / par</div>`}
   if(r.gpts!=null){const unit=g.gameType==='nassau'?'€':' pts';return`<div class="fw7 f14 ${r.gpts>0?'tg':r.gpts<0?'tr':''}">${r.gpts>0?'+':''}${r.gpts}${unit}</div>`}
-  if(g.gameType==='matchplay')return`<div class="fw7 f14">${g.matchState?.holesWon[r.pi]||0} trous gagnés</div>`;
+  if(g.gameType==='matchplay'){
+    var pls2mp=g.playerIds.map(id=>pById(id));
+    var mpf=mpFinalScore(g,pls2mp);
+    if(mpf){
+      var isWinner=mpf.winnerPi===r.pi;
+      var isDraw=mpf.draw;
+      if(isDraw)return`<div class="fw7 f14">${esc(mpf.label)}</div><div class="f11 tm">${g.matchState?.holesWon[r.pi]||0} trous gagnés</div>`;
+      if(isWinner)return`<div class="fw7 f14 tg">🏆 ${esc(mpf.label)}</div><div class="f11 tm">${g.matchState?.holesWon[r.pi]||0} trous gagnés</div>`;
+      return`<div class="fw7 f14 tm">Perd ${esc(mpf.label)}</div><div class="f11 tm">${g.matchState?.holesWon[r.pi]||0} trous gagnés</div>`;
+    }
+    return`<div class="fw7 f14">${g.matchState?.holesWon[r.pi]||0} trous gagnés</div>`;
+  }
   if(g.gameType==='dbb'){const d=g.dbbState;const ti=g.teamAssign[r.p.id];const oti=ti===0?1:0;const tot=(d?.m1.hw[ti]||0)+(d?.m2.hw[ti]||0);const oth=(d?.m1.hw[oti]||0)+(d?.m2.hw[oti]||0);const diff=tot-oth;const lbl=diff>0?diff+' up':(diff<0?Math.abs(diff)+' down':'All square');return`<div class="fw7 f14" style="color:var(--g)">${lbl}</div><div class="f11 tm">${tot} trou${tot>1?'s':''} · M1:${d?.m1.hw[ti]||0} M2:${d?.m2.hw[ti]||0}</div>`}
   const diff=r.gr-(cById(g.courseId)?.holes.reduce((s,h)=>s+h.par,0)||72);
   return`<div class="fw7 f14">Net : ${r.net}</div><div class="f11 tm">Brut : ${r.gr} (${diff>0?'+':''}${diff})</div>`}
