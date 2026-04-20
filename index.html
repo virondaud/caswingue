@@ -5400,13 +5400,22 @@ function shotConfidence(shotKey,diffMeters){
 }
 
 function clubsAdvisorView(){
-  // Si accès depuis la partie, permettre sélection (plusieurs joueurs) ; sinon, utiliser "moi"
+  // En partie : priorité à "Moi" si identifié ET présent dans la partie.
+  // Sinon accepte le joueur actif (S.clubsPlayerId) ou bascule sur le premier joueur.
   var backTarget2=S.advisorReturnTo||'clubs';
   var inGame2=backTarget2==='playing'&&DB.game;
+  var me2=getMePlayer();
   var p;
-  if(inGame2){p=DB.players.find(pl=>pl.id===S.clubsPlayerId);}
-  else{p=getMePlayer()||DB.players.find(pl=>pl.id===S.clubsPlayerId);}
+  if(inGame2){
+    var meInGame=me2&&DB.game.playerIds.includes(me2.id);
+    if(meInGame)p=me2;
+    else p=DB.players.find(pl=>pl.id===S.clubsPlayerId);
+  }else{
+    p=me2||DB.players.find(pl=>pl.id===S.clubsPlayerId);
+  }
   if(!p)return clubsView();
+  // Synchronise S.clubsPlayerId avec le joueur effectivement utilisé
+  if(S.clubsPlayerId!==p.id)S.clubsPlayerId=p.id;
   // Conditions du jour (persistées dans DB)
   if(!DB.roundConditions)DB.roundConditions={temp:20,humidity:50};
   // Paramètres du coup en cours
@@ -5455,7 +5464,10 @@ function clubsAdvisorView(){
 
   var backTarget=S.advisorReturnTo||'clubs';
   var inGame=backTarget==='playing'&&DB.game;
-  var playerOptions=inGame?DB.game.playerIds.map(id=>pById(id)).filter(Boolean):DB.players;
+  // Si "Moi" est identifié et présent dans la partie, on ne propose pas les autres joueurs
+  // (le Club Advisor est basé sur MES distances personnelles, pas celles des autres)
+  var meInGameForSel=inGame&&me2&&DB.game.playerIds.includes(me2.id);
+  var playerOptions=meInGameForSel?[me2]:(inGame?DB.game.playerIds.map(id=>pById(id)).filter(Boolean):DB.players);
 
   // Helper pour générer les 3 recommandations d'une cible
   function renderTargetRecs(target){
