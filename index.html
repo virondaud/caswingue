@@ -7226,6 +7226,8 @@ function finishGame(){
   }
   // Push les manches pour les joueurs ayant un code global
   try{pushRoundForAllGlobalPlayers(finished);}catch(e){console.warn(e);}
+  // Crée automatiquement une session d'entraînement "Parcours" pour "Moi"
+  try{if(typeof createCourseTrainingFromGame==='function')createCourseTrainingFromGame(finished);}catch(e){console.warn(e);}
   // Nettoie la diffusion live (évite les parties fantômes sur Firebase)
   cleanupLiveBroadcast(liveIdToClean);
   DB.game=null;save();go('results');
@@ -7241,6 +7243,7 @@ function terminateGame(){
       if(ch&&ch.online){try{onlineChampPushRound(ch,finished);}catch(e){console.warn(e);}}
     }
     try{pushRoundForAllGlobalPlayers(finished);}catch(e){console.warn(e);}
+    try{if(typeof createCourseTrainingFromGame==='function')createCourseTrainingFromGame(finished);}catch(e){console.warn(e);}
     cleanupLiveBroadcast(liveIdToClean);
     DB.game=null;save();go('results');
   });
@@ -9520,6 +9523,74 @@ function exportTrainingCSV(){
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),100);
 }
+// ── Auto-création session "Parcours" depuis une partie terminée ──
+function createCourseTrainingFromGame(game){
+  if(!game)return null;
+  var me=getMePlayer();if(!me)return null;
+  var pi=game.playerIds.indexOf(me.id);if(pi<0)return null;
+  if(!DB.practice)DB.practice=[];
+  // Anti-doublon par gameId
+  if(DB.practice.some(s=>s.linkedGameId===game.id))return null;
+  var course=cById(game.courseId);
+  var holes=course?course.holes:[];
+  var totalPar=holes.reduce((s,h)=>s+(h.par||0),0);
+  var gr=0,birdies=0,pars=0,bogeys=0,dbogeys=0,played=0;
+  (game.scores||[]).forEach(function(row,hi){
+    var s=row&&row[pi];var par=holes[hi]?holes[hi].par:null;
+    if(!s||!par)return;
+    gr+=s;played++;
+    var d=s-par;
+    if(d<=-1)birdies++;
+    else if(d===0)pars++;
+    else if(d===1)bogeys++;
+    else if(d>=2)dbogeys++;
+  });
+  var startedAt=game.startedAt||game.date||Date.now();
+  var finishedAt=game.finishedAt||Date.now();
+  var durationMin=Math.round((finishedAt-startedAt)/60000);
+  if(durationMin<=0||durationMin>600)durationMin=played>=16?240:played>=9?120:60;
+  var entry={
+    id:'game-'+game.id,
+    date:finishedAt,
+    type:'course',
+    duration:durationMin,
+    location:course?course.name:'',
+    rating:0,focuses:[],
+    counters:{
+      holes:played,
+      brut:gr,
+      par:totalPar,
+      diff:gr-totalPar,
+      birdies:birdies,pars:pars,bogeys:bogeys,dbogeys:dbogeys
+    },
+    notes:'',
+    linkedGameId:game.id,
+    linkedGameDate:startedAt
+  };
+  DB.practice.push(entry);
+  return entry;
+}
+// Importer toutes les parties passées où "Moi" a joué
+function importPastGamesAsTraining(){
+  var me=getMePlayer();
+  if(!me){alert('Identifie-toi d\'abord dans "Mes joueurs" (bouton 🙋).');return;}
+  if(!DB.history||!DB.history.length){alert('Aucune partie dans l\'historique.');return;}
+  if(!confirm('Importer toutes les parties où tu as joué ('+me.name+') comme sessions "Parcours" ?\n\nLes sessions déjà liées (si tu as rejoué cet import) ne seront pas dupliquées.'))return;
+  var n=0;
+  DB.history.forEach(function(g){
+    if(!g.playerIds||!g.playerIds.includes(me.id))return;
+    var created=createCourseTrainingFromGame(g);
+    if(created)n++;
+  });
+  save();render();
+  alert('✅ '+n+' partie'+(n>1?'s':'')+' importée'+(n>1?'s':'')+' comme session(s) Parcours.');
+}
+
+function openLinkedGame(gameId){
+  var idx=DB.history.findIndex(g=>g.id===gameId);
+  if(idx<0){alert('Partie introuvable dans l\'historique.');return;}
+  S.histViewIdx=idx;go('results');
+}
 function usePreset(key){
   var pr=TRAINING_PRESETS.find(x=>x.key===key);if(!pr)return;
   S._trainForm={
@@ -9637,6 +9708,15 @@ function practiceView(){
       </div>
     </div>
 
+    <!-- Sync parties passées -->
+    ${DB.history&&DB.history.length?`<div class="card" style="padding:10px;background:#f0fdf4;border-left:3px solid #16a34a">
+      <div class="f fc g8"><div style="font-size:22px">⛳</div>
+        <div style="flex:1"><div class="fw7 f13">Compter tes parties comme sessions</div>
+        <div class="f11 tm">Chaque partie terminée crée une session "Parcours" auto. Tu peux aussi importer tes parties passées.</div></div>
+        <button class="btn bsm bp mb0" onclick="importPastGamesAsTraining()">📥 Importer</button>
+      </div>
+    </div>`:''}
+
     <!-- Dashboard 30j -->
     <div class="card" style="padding:12px">
       <div class="f" style="justify-content:space-between;align-items:center">
@@ -9674,6 +9754,8 @@ function practiceView(){
         calBtn='<button class="btn bxs bo mb0" style="width:auto;padding:4px 8px" onclick="event.stopPropagation();go(\'clubsChipEdit\')" title="Aller étalonner">📏 Étalonner</button>';
       }else if(s.type==='putting'&&s.counters&&((s.counters.shortTried||0)+(s.counters.medTried||0)+(s.counters.longTried||0))>0){
         calBtn='<button class="btn bxs bo mb0" style="width:auto;padding:4px 8px" onclick="event.stopPropagation();S.petitJeuTab=\'putt\';go(\'petitJeu\')" title="Aller étalonner les repères">📏 Étalonner</button>';
+      }else if(s.type==='course'&&s.linkedGameId){
+        calBtn='<button class="btn bxs bo mb0" style="width:auto;padding:4px 8px" onclick="event.stopPropagation();openLinkedGame(\''+esc(s.linkedGameId)+'\')" title="Voir la scorecard">📊 Voir partie</button>';
       }
       return `<div class="card" style="padding:12px;cursor:pointer" onclick="openTrainingModal(${realIdx})">
         <div class="f" style="justify-content:space-between;align-items:flex-start">
@@ -9712,6 +9794,12 @@ function renderTrainingCounters(s){
     if(c.longTried)items.push('Long: '+(c.longMade||0)+'/'+c.longTried);
   }else if(s.type==='chipping'){
     if(c.chipTried)items.push('🪶 '+(c.chipClose||0)+'/'+c.chipTried+' à <2m');
+  }else if(s.type==='course'){
+    if(c.holes)items.push('⛳ '+c.holes+' trous');
+    if(c.brut&&c.par){var d=c.diff;items.push('Brut '+c.brut+' ('+(d>0?'+':'')+d+' par)');}
+    if(c.birdies)items.push('🐦 '+c.birdies+' birdie'+(c.birdies>1?'s':''));
+    if(c.pars)items.push('Par '+c.pars);
+    if(c.bogeys)items.push('Bogey '+c.bogeys);
   }
   if(!items.length)return '';
   return '<div class="f g8 mt8" style="flex-wrap:wrap">'+items.map(i=>'<span class="badge bg" style="background:#ddd6fe;color:#5b21b6;font-size:10px">'+i+'</span>').join('')+'</div>';
