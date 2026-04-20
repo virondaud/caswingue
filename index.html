@@ -5367,7 +5367,8 @@ function addStandardWedges(playerId){
     if(m)existingLofts.add(parseInt(m[1],10));
   });
 
-  var lofts=[42,44,46,48,50,52,54,56,58,60];
+  // 42→50 au degré près, 50→60 tous les 2°
+  var lofts=[42,43,44,45,46,47,48,49,50,52,54,56,58,60];
 
   var existing=document.getElementById('wedge-mo');if(existing)existing.remove();
   var div=document.createElement('div');
