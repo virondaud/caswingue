@@ -4947,6 +4947,8 @@ function adminDeleteGlobalPlayer(code){
 }
 
 // ══ 🎯 DISTANCES PAR CLUB + CALCULATEUR MÉTÉO ═════════════════════════════
+// Set par défaut : PAS de wedges préchargés — l'utilisateur ajoute les siens
+// via le bouton "⚡ Ajouter les wedges standard" (catalogue 42° à 60°)
 const DEFAULT_CLUBS=[
   {id:'drv',name:'Driver',icon:'🏌️',full:null,threeQ:null,half:null},
   {id:'b3',name:'Bois 3',icon:'🪵',full:null,threeQ:null,half:null},
@@ -4959,11 +4961,7 @@ const DEFAULT_CLUBS=[
   {id:'f6',name:'Fer 6',icon:'🔩',full:null,threeQ:null,half:null},
   {id:'f7',name:'Fer 7',icon:'🔩',full:null,threeQ:null,half:null},
   {id:'f8',name:'Fer 8',icon:'🔩',full:null,threeQ:null,half:null},
-  {id:'f9',name:'Fer 9',icon:'🔩',full:null,threeQ:null,half:null},
-  {id:'w48',name:'48°',icon:'⚡',full:null,threeQ:null,half:null},
-  {id:'w52',name:'52°',icon:'⚡',full:null,threeQ:null,half:null},
-  {id:'w56',name:'56°',icon:'⚡',full:null,threeQ:null,half:null},
-  {id:'w60',name:'60°',icon:'⚡',full:null,threeQ:null,half:null}
+  {id:'f9',name:'Fer 9',icon:'🔩',full:null,threeQ:null,half:null}
 ];
 
 // Retourne la catégorie d'un club : 'driver' | 'bois' | 'hybrid' | 'fer' | 'wedge' | 'other'
