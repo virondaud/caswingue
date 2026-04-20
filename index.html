@@ -5682,18 +5682,18 @@ function addStandardWedges(playerId){
   var html='<div style="background:#fff;border-radius:20px 20px 0 0;padding:20px;width:100%;max-height:85vh;overflow-y:auto">';
   html+='<div style="font-weight:800;font-size:17px;margin-bottom:4px">⚡ Ajouter des wedges</div>';
   html+='<div style="font-size:12px;color:#64748b;margin-bottom:14px">Choisis les lofts que tu as dans ton sac (42° à 60°).</div>';
-  html+='<div class="f g8" style="flex-wrap:wrap;margin-bottom:6px">';
+  html+='<div id="wedge-mo-grid" class="f g8" style="flex-wrap:wrap;margin-bottom:6px">';
   lofts.forEach(function(loft){
     var already=existingLofts.has(loft);
-    html+='<button class="btn bsm mb0" style="flex:1 1 30%;'+(already?'background:#d1fae5;color:#065f46;border-color:#10b981':'')+'" onclick="addSingleWedge(\''+playerId+'\',\'w'+loft+'\',\''+loft+'°\');this.textContent=\'✅ '+loft+'°\';this.style.background=\'#d1fae5\';this.style.color=\'#065f46\'" '+(already?'disabled':'')+'>'+(already?'✅ ':'➕ ')+loft+'°</button>';
+    html+='<button data-loft="'+loft+'" class="btn bsm mb0" style="flex:1 1 30%;'+(already?'background:#d1fae5;color:#065f46;border-color:#10b981':'')+'" onclick="toggleWedge(\''+playerId+'\','+loft+')">'+(already?'✅ ':'➕ ')+loft+'°</button>';
   });
   html+='</div>';
   html+='<div class="f11 tm mt8" style="padding:10px;background:#f8fafc;border-radius:10px">';
-  html+='💡 Repères courants :<br>';
+  html+='💡 Clique pour ajouter/retirer un wedge. Repères courants :<br>';
   html+='• <b>42°-48°</b> : pitching / gap — approches longues à moyennes<br>';
   html+='• <b>50°-54°</b> : mi-approches et contrôle<br>';
   html+='• <b>56°-60°</b> : bunkers, lobs et sorties difficiles</div>';
-  html+='<button class="btn bo mt8" onclick="document.getElementById(\'wedge-mo\').remove();render()">Terminé</button>';
+  html+='<button class="btn bp mt8" onclick="document.getElementById(\'wedge-mo\').remove();render()">Terminé</button>';
   html+='</div>';
   div.innerHTML=html;
   document.body.appendChild(div);
@@ -5704,6 +5704,32 @@ function addSingleWedge(playerId,id,name){
   if(p.clubs.find(c=>c.id===id))return;
   p.clubs.push({id:id,name:name,icon:'⚡',_iconCat:'wedge',full:null,threeQ:null,half:null,custom:true});
   sortPlayerClubs(p);
+  save();
+}
+// Ajoute/retire un wedge par loft (toggle)
+function toggleWedge(playerId,loft){
+  var p=pById(playerId);if(!p)return;
+  if(!p.clubs)p.clubs=[];
+  // Cherche un wedge de ce loft (par id w{loft} ou par nom "{loft}°")
+  var idTarget='w'+loft;
+  var idx=p.clubs.findIndex(c=>{
+    if(c.id===idTarget)return true;
+    var m=(c.name||'').match(/(\d{2})\s*°/);
+    return m && parseInt(m[1],10)===loft;
+  });
+  var btn=document.querySelector('#wedge-mo-grid button[data-loft="'+loft+'"]');
+  if(idx>=0){
+    var removed=p.clubs[idx];
+    // Garde-fou : si des distances sont saisies, demander confirmation
+    var hasData=(removed.full||removed.threeQ||removed.half||(removed.chip&&(removed.chip.two||removed.chip.three||removed.chip.four)));
+    if(hasData && !confirm('Retirer le '+loft+'° ?\n\nDes distances sont saisies pour ce club, elles seront perdues.'))return;
+    p.clubs.splice(idx,1);
+    if(btn){btn.innerHTML='➕ '+loft+'°';btn.style.background='';btn.style.color='';btn.style.borderColor='';}
+  }else{
+    p.clubs.push({id:idTarget,name:loft+'°',icon:'⚡',_iconCat:'wedge',full:null,threeQ:null,half:null,custom:true});
+    sortPlayerClubs(p);
+    if(btn){btn.innerHTML='✅ '+loft+'°';btn.style.background='#d1fae5';btn.style.color='#065f46';btn.style.borderColor='#10b981';}
+  }
   save();
 }
 function resetClubs(pid){
