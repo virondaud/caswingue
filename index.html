@@ -827,7 +827,7 @@ function defHoles(){
 let S={view:DB.game?'playing':'home',setup:{},ec:null,tab:0,rulesGame:null};window.S=S;
 
 // ══ RENDER ════════════════════════════════════════════════════════════════
-const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView,clubs:clubsView,clubsEdit:clubsEditView,clubsCalc:clubsCalcView,clubsAdvisor:clubsAdvisorView,allGlobalPlayers:allGlobalPlayersView};
+const VIEWS={home,courses,editCourse:ecView,players,setup,playing,scorecard,editscores:editScores,results,history,championships,championship,rules:rulesView,rulesmenu:rulesMenu,courseInfo:courseInfoView,bookingCourses:bookingCoursesView,bookingDetail:bookingDetailView,infoGolf:infoGolfView,materielGolf:materielGolfView,appsGolf:appsGolfView,competitionsGolf:competitionsGolfView,clubCalendars:clubCalendarsView,ballReco:ballRecoView,ballSwing:ballSwingView,ballTop:ballTopView,ballFit:ballFitView,gloveReco:gloveRecoView,comparatif:comparatifView,clubNantes:clubNantesView,technique:techniqueView,techniqueDrawFade:techniqueDrawFadeView,wazeGolfs:wazeGolfsView,destinationsGolf:destinationsGolfView,techniqueChipping:techniqueChippingView,techniqueFers:techniqueFersView,techniqueBois:techniqueBoisView,calendarEmbed:calendarEmbedView,stats:statsView,achievements:achievementsView,practice:practiceView,h2h:h2hView,cloudBackup:cloudBackupView,cloudCats:cloudCatsView,clubs:clubsView,clubsEdit:clubsEditView,clubsCalc:clubsCalcView,clubsAdvisor:clubsAdvisorView,clubsChip:clubsChipView,allGlobalPlayers:allGlobalPlayersView};
 const APP_FOOTER='<div style="text-align:center;padding:18px 0 10px;color:#94a3b8;font-size:12px" ondblclick="activateSuperAdmin()">⛳ Ça Swingue Manager <b>v14</b> · © 2026 Virnaoned</div>';
 function render(){
   const f=VIEWS[S.view];
@@ -5150,6 +5150,7 @@ function clubsView(){
       <button class="btn bp mb0" style="flex:1" onclick="go('clubsEdit')">✏️ Éditer mes distances</button>
       <button class="btn mb0" style="flex:1;background:linear-gradient(135deg,#0891b2,#06b6d4);color:#fff;border:none" onclick="go('clubsCalc')">🌡️ Calculateur météo</button>
     </div>
+    <button class="btn mb0 mt8" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none" onclick="go('clubsChip')">🪶 Approches roulées (Fer 9 → 60°)</button>
     ${renderClubsTable(p,false)}
     <div class="f11 tm mt8" style="padding:10px;background:#f8fafc;border-radius:10px">
       💡 Ces distances sont propres à <b>toi</b>. Pour changer d'identité, clique sur 🔄 en haut.
@@ -5157,6 +5158,127 @@ function clubsView(){
   </div>`;
 }
 
+// ══ 🪶 APPROCHES ROULÉES (fer 9 → 60°) ═══════════════════════════════════
+// Facteurs spécifiques approches roulées (pas de météo) : green + pente
+function chipGreenFactor(s){ // s ∈ {'lent','normal','rapide'}
+  if(s==='lent')return 0.85;
+  if(s==='rapide')return 1.20;
+  return 1.00;
+}
+function chipSlopeFactor(s){ // s ∈ {'montee','plat','descente'}
+  if(s==='montee')return 0.85;
+  if(s==='descente')return 1.18;
+  return 1.00;
+}
+// Retourne la distance ajustée (arrondie à 1m)
+function chipAdjust(base,green,slope){
+  if(!base)return null;
+  return Math.round(base*chipGreenFactor(green)*chipSlopeFactor(slope));
+}
+// Les clubs d'approche concernés : fer 9 + wedges
+function isChipClub(club){
+  var cat=clubCategory(club);
+  if(cat==='wedge')return true;
+  if(cat==='fer'){
+    var m=(club.id||'').match(/\d+/);
+    return m && parseInt(m[0],10)===9;
+  }
+  return false;
+}
+function clubsChipView(){
+  var p=getMePlayer()||DB.players.find(pl=>pl.id===S.clubsPlayerId);
+  if(!p)return clubsView();
+  var clubs=getPlayerClubs(p).filter(isChipClub);
+  // Tri : fer 9 en premier puis wedges par loft croissant
+  clubs.sort(function(a,b){
+    var ka=clubCategory(a)==='fer'?0:1;
+    var kb=clubCategory(b)==='fer'?0:1;
+    if(ka!==kb)return ka-kb;
+    var la=(a.name.match(/(\d{2})\s*°/)||[0,99])[1];
+    var lb=(b.name.match(/(\d{2})\s*°/)||[0,99])[1];
+    return parseInt(la,10)-parseInt(lb,10);
+  });
+  if(!S.chipGreen)S.chipGreen='normal';
+  if(!S.chipSlope)S.chipSlope='plat';
+  var green=S.chipGreen,slope=S.chipSlope;
+  var fact=chipGreenFactor(green)*chipSlopeFactor(slope);
+  var factLbl=((fact-1)*100).toFixed(0);
+  var hasAny=clubs.some(c=>c.full||c.threeQ||c.half);
+
+  var btn=function(curSel,key,val,emoji,label){
+    var active=curSel===val;
+    return `<button class="btn bsm mb0" style="flex:1;${active?'':'background:#fff;color:#475569;border:1px solid #cbd5e1'}" onclick="S.${key}='${val}';render()">${emoji} ${label}</button>`;
+  };
+
+  return `<div class="hdr"><button class="back" onclick="go('clubs')">‹</button><h1>🪶 Approches roulées</h1></div>
+  <div class="content an">
+    <div class="card" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;padding:14px">
+      <div class="f fc g8"><div style="font-size:28px">🪶</div>
+        <div style="flex:1"><div class="fw8 f14">${esc(p.name)} · Fer 9 → Wedges</div>
+        <div class="f12" style="opacity:.9">Distances approches roulées — ⅓ et ½ de coup · <b>hors météo</b></div></div>
+      </div>
+    </div>
+    <div class="card" style="padding:10px">
+      <div class="f11 tm" style="margin-bottom:6px">🌱 Vitesse du green</div>
+      <div class="f g8 mb0">
+        ${btn(green,'chipGreen','lent','🐢','Lent')}
+        ${btn(green,'chipGreen','normal','🟢','Normal')}
+        ${btn(green,'chipGreen','rapide','⚡','Rapide')}
+      </div>
+      <div class="f11 tm" style="margin-top:10px;margin-bottom:6px">⛰️ Pente du green</div>
+      <div class="f g8 mb0">
+        ${btn(slope,'chipSlope','montee','↗️','Montée')}
+        ${btn(slope,'chipSlope','plat','➡️','Plat')}
+        ${btn(slope,'chipSlope','descente','↘️','Descente')}
+      </div>
+      <div class="f11 tm mt8" style="padding:8px;background:#faf5ff;border-radius:8px;text-align:center">
+        Facteur global : <b style="color:#7c3aed">×${fact.toFixed(2)}</b> (${factLbl>=0?'+':''}${factLbl}% vs référence plat/normal)
+      </div>
+    </div>
+    ${!hasAny?`<div class="card"><div class="empty" style="padding:20px">
+      <div class="ei">📏</div>
+      <p class="f13">Aucune distance saisie pour Fer 9 ni wedges</p>
+      <button class="btn bp mt8" onclick="go('clubsEdit')">Saisir mes distances</button>
+    </div></div>`:`
+    <div class="card" style="overflow-x:auto;padding:10px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:2px solid #e2e8f0">
+          <th style="padding:8px;text-align:left">Club</th>
+          <th style="padding:8px;text-align:center">⅓ coup</th>
+          <th style="padding:8px;text-align:center">½ coup</th>
+          <th style="padding:8px;text-align:center">Plein</th>
+        </tr></thead>
+        <tbody>
+          ${clubs.map(function(c){
+            // ⅓ = estimé comme 60% du ¾ (threeQ) si dispo, sinon 40% du plein
+            var oneThird=c.threeQ?Math.round(c.threeQ*0.60):(c.full?Math.round(c.full*0.40):null);
+            var half=c.half;
+            var full=c.full;
+            var c13=chipAdjust(oneThird,green,slope);
+            var c12=chipAdjust(half,green,slope);
+            var cf=chipAdjust(full,green,slope);
+            var cell=function(adj,ref){
+              if(!adj)return '<div class="tm">–</div>';
+              return '<div class="fw7" style="color:#7c3aed">'+adj+' m</div><div class="f11 tm">ref '+ref+' m</div>';
+            };
+            return `<tr style="border-bottom:1px solid #f1f5f9">
+              <td style="padding:8px;font-weight:700">${clubIconHtml(c,18)} ${esc(c.name)}</td>
+              <td style="padding:8px;text-align:center">${cell(c13,oneThird)}</td>
+              <td style="padding:8px;text-align:center">${cell(c12,half)}</td>
+              <td style="padding:8px;text-align:center">${cell(cf,full)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="f11 tm mt8" style="padding:10px;background:#faf5ff;border-radius:10px;line-height:1.5">
+      ℹ️ <b>Approches roulées</b> — on multiplie la distance de référence (plat + green normal) par :<br>
+      • Green : lent ×0.85 · normal ×1.00 · rapide ×1.20<br>
+      • Pente : montée ×0.85 · plat ×1.00 · descente ×1.18<br>
+      ⅓ coup estimé = 60% du ¾ (ou 40% du plein) si tu ne l'as pas saisi.
+    </div>`}
+  </div>`;
+}
 function renderClubsTable(p,showAdjusted){
   var clubs=getPlayerClubs(p);
   var temp=S.calcTemp??20;
