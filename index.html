@@ -8308,14 +8308,16 @@ function collectRoundsForPlayer(playerId,source,cb){
 
 function statsHistoryForPlayer(playerId,limit){
   // Retourne les parties terminées où le joueur figure
-  const list=DB.history.filter(g=>g.playerIds.includes(playerId));
+  // Exclut les formats à score partagé (scramble/foursome/patsome)
+  const list=DB.history.filter(g=>g.playerIds.includes(playerId)&&!isTeamScoreGame(g));
   list.sort((a,b)=>b.startedAt-a.startedAt);
   return limit?list.slice(0,limit):list;
 }
 function statsAvgByPar(playerId){
-  // Moyenne brute par type de par (3/4/5)
+  // Moyenne brute par type de par (3/4/5) - exclut formats équipe
   const agg={3:{sum:0,n:0},4:{sum:0,n:0},5:{sum:0,n:0}};
   DB.history.forEach(g=>{
+    if(isTeamScoreGame(g))return;
     const pi=g.playerIds.indexOf(playerId);if(pi<0)return;
     const course=cById(g.courseId);if(!course)return;
     g.scores.forEach((hs,hi)=>{const s=hs[pi];if(!s)return;const par=course.holes[hi]?.par;if(par&&agg[par]){agg[par].sum+=s;agg[par].n++;}});
@@ -8429,7 +8431,8 @@ function statsView(){
 // ══ HEAD-TO-HEAD ══════════════════════════════════════════════════════════
 function h2hCompare(p1Id,p2Id){
   // Parties où les 2 ont joué la même partie (local uniquement)
-  const games=DB.history.filter(g=>g.playerIds.includes(p1Id)&&g.playerIds.includes(p2Id));
+  // Exclut les formats à score partagé (scramble/foursome/patsome)
+  const games=DB.history.filter(g=>g.playerIds.includes(p1Id)&&g.playerIds.includes(p2Id)&&!isTeamScoreGame(g));
   let p1Wins=0,p2Wins=0,ties=0,p1TotalNet=0,p2TotalNet=0,p1TotalBrut=0,p2TotalBrut=0,nGames=0;
   games.forEach(g=>{
     const course=cById(g.courseId);if(!course)return;
@@ -9288,27 +9291,40 @@ if(lg('gm_version',0)<13){
   (DB.courses||[]).forEach(c=>{if(c.name && renameMap[c.name]) c.name=renameMap[c.name];});
   ls('gm_version',13);save();
 }
-// Migration v15 : Bagnoles-de-l'Orne = 9 trous joués 2x (carte complète corrigée via 18Birdies)
-if(lg('gm_version',0)<15){
-  var BAGNOLES_HOLES=[
-    {par:4,handicap:8,distBlanc:297,distJaune:277},{par:3,handicap:18,distBlanc:168,distJaune:157},
-    {par:3,handicap:10,distBlanc:136,distJaune:127},{par:4,handicap:4,distBlanc:385,distJaune:359},
-    {par:3,handicap:14,distBlanc:111,distJaune:104},{par:4,handicap:16,distBlanc:358,distJaune:334},
-    {par:4,handicap:2,distBlanc:311,distJaune:290},{par:4,handicap:6,distBlanc:345,distJaune:322},
-    {par:4,handicap:12,distBlanc:333,distJaune:311},{par:4,handicap:7,distBlanc:297,distJaune:277},
-    {par:3,handicap:17,distBlanc:168,distJaune:157},{par:3,handicap:9,distBlanc:136,distJaune:127},
-    {par:4,handicap:3,distBlanc:385,distJaune:359},{par:3,handicap:13,distBlanc:111,distJaune:104},
-    {par:4,handicap:15,distBlanc:358,distJaune:334},{par:4,handicap:1,distBlanc:311,distJaune:290},
-    {par:4,handicap:5,distBlanc:345,distJaune:322},{par:4,handicap:11,distBlanc:333,distJaune:311}
-  ];
+// ══ Migration v2.0 ════════════════════════════════════════════════════════
+// Reset consolidé des cartes de parcours officielles (noms canoniques)
+// → ne touche QUE les parcours dont le nom matche un preset ;
+// → les parcours créés par l'utilisateur ne sont jamais modifiés.
+// Bump cette version (lg('gm_version_major')) quand une carte officielle change.
+if(lg('gm_version_major',0)<20){
+  var CANONICAL_COURSE_DATA={
+    "Bagnoles-de-l'Orne":{
+      blanc:{slope:129,sss:66.4},jaune:{slope:127,sss:65.5},slope:129,sss:66.4,
+      holes:[
+        {par:4,handicap:8,distBlanc:297,distJaune:277},{par:3,handicap:18,distBlanc:168,distJaune:157},
+        {par:3,handicap:10,distBlanc:136,distJaune:127},{par:4,handicap:4,distBlanc:385,distJaune:359},
+        {par:3,handicap:14,distBlanc:111,distJaune:104},{par:4,handicap:16,distBlanc:358,distJaune:334},
+        {par:4,handicap:2,distBlanc:311,distJaune:290},{par:4,handicap:6,distBlanc:345,distJaune:322},
+        {par:4,handicap:12,distBlanc:333,distJaune:311},{par:4,handicap:7,distBlanc:297,distJaune:277},
+        {par:3,handicap:17,distBlanc:168,distJaune:157},{par:3,handicap:9,distBlanc:136,distJaune:127},
+        {par:4,handicap:3,distBlanc:385,distJaune:359},{par:3,handicap:13,distBlanc:111,distJaune:104},
+        {par:4,handicap:15,distBlanc:358,distJaune:334},{par:4,handicap:1,distBlanc:311,distJaune:290},
+        {par:4,handicap:5,distBlanc:345,distJaune:322},{par:4,handicap:11,distBlanc:333,distJaune:311}
+      ]
+    }
+    // Ajouter d'autres parcours officiels ici quand nécessaire.
+  };
   (DB.courses||[]).forEach(c=>{
-    if(c.name==="Bagnoles-de-l'Orne" && c.holes && c.holes.length===18){
-      c.holes=BAGNOLES_HOLES.map(h=>({...h}));
-      c.blanc={slope:129,sss:66.4};c.jaune={slope:127,sss:65.5};
-      c.slope=129;c.sss=66.4;
+    var canon=CANONICAL_COURSE_DATA[c.name];
+    if(canon && c.holes && c.holes.length===canon.holes.length){
+      c.holes=canon.holes.map(h=>({...h}));
+      if(canon.blanc)c.blanc=canon.blanc;
+      if(canon.jaune)c.jaune=canon.jaune;
+      if(canon.slope)c.slope=canon.slope;
+      if(canon.sss)c.sss=canon.sss;
     }
   });
-  ls('gm_version',15);save();
+  ls('gm_version_major',20);save();
 }
 window.addEventListener('resize',()=>{if(S.view==='scorecard')render();});
 // ── Liens externes iOS PWA standalone ─────────────────────────────────
